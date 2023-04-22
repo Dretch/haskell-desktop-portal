@@ -1,0 +1,67 @@
+name: CI
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-22.04
+
+    steps:
+
+    - uses: actions/checkout@v3
+
+    - name: 'Check formatting'
+      uses: mrkkrp/ormolu-action@v9
+
+    - uses: actions/cache@v3
+      with:
+        key: stack
+        path: ~/.stack
+    
+    - uses: actions/cache@v3
+      with:
+        key: stack-work
+        path: .stack-work
+
+    - uses: haskell/actions/setup@v2
+      with:
+        stack-setup-ghc: true
+        enable-stack: true
+
+    - name: 'Check package metadata'
+      run: cabal check
+
+    - name: 'Build and Test'
+      run: stack test
+
+    - name: 'Generate Package'
+      run: stack sdist
+
+    - name: 'Archive Package'
+      uses: actions/upload-artifact@v3
+      with:
+        name: package
+        path: .stack-work/dist/*/*/desktop-portal-*.tar.gz
+        if-no-files-found: error
+  
+  publish:
+  
+    needs: [build]
+
+    runs-on: ubuntu-22.04
+
+    environment:
+      name: hackage
+      url: https://hackage.haskell.org/package/desktop-portal
+
+    steps:
+    - uses: actions/download-artifact@v3
+      with:
+        name: package
+
+    - name: 'Publish Package to Hackage'
+      run: cabal upload --publish -u "$HACKAGE_USERNAME" -p "$HACKAGE_PASSWORD" */*/*.tar.gz
+      env:
+        HACKAGE_USERNAME: ${{ secrets.HACKAGE_USERNAME }}
+        HACKAGE_PASSWORD: ${{ secrets.HACKAGE_PASSWORD }}
