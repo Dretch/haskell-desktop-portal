@@ -18,18 +18,18 @@ spec :: Spec
 spec = do
   around withTestBus $ do
     describe "openFile" $ do
-      it "should encode request with all Nothings" $ \client -> do
-        body <- savingRequestArguments client fileChooserInterface "OpenFile" $ do
-          void (Portal.openFile def)
+      it "should encode request with all Nothings" $ \handle -> do
+        body <- savingRequestArguments handle fileChooserInterface "OpenFile" $ do
+          void (Portal.openFile (client handle) def)
         body
           `shouldBe` [ toVariantText "",
                        toVariantText "",
                        toVariantMap []
                      ]
 
-      it "should encode request with all Justs" $ \client -> do
-        body <- savingRequestArguments client fileChooserInterface "OpenFile" $ do
-          void . Portal.openFile $
+      it "should encode request with all Justs" $ \handle -> do
+        body <- savingRequestArguments handle fileChooserInterface "OpenFile" $ do
+          void . Portal.openFile (client handle) $
             OpenFileOptions
               { parentWindow = Just "_parentWindow",
                 title = Just "_title",
@@ -98,23 +98,23 @@ spec = do
                          ]
                      ]
 
-      it "should decode response with all Nothings" $ \client -> do
+      it "should decode response with all Nothings" $ \handle -> do
         let responseBody = successResponse [("uris", toVariant ["file:///a/b/c" :: Text])]
-        withMethodResponse client fileChooserInterface "OpenFile" responseBody $ do
-          info <- Portal.openFile def >>= Portal.await
+        withMethodResponse handle fileChooserInterface "OpenFile" responseBody $ do
+          info <- Portal.openFile (client handle) def >>= Portal.await
           info
             `shouldBe` Just
               (OpenFileResults {uris = ["file:///a/b/c"], choices = Nothing, currentFilter = Nothing})
 
-      it "should decode response with all Justs" $ \client -> do
+      it "should decode response with all Justs" $ \handle -> do
         let responseBody =
               successResponse
                 [ ("uris", toVariant ["file:///a/b/c" :: Text]),
                   ("choices", toVariant [("_comboId" :: Text, "_optionId" :: Text)]),
                   ("current_filter", toVariant ("_filterId" :: Text, [(0 :: Word32, "*.md" :: Text)]))
                 ]
-        withMethodResponse client fileChooserInterface "OpenFile" responseBody $ do
-          info <- Portal.openFile def >>= Portal.await
+        withMethodResponse handle fileChooserInterface "OpenFile" responseBody $ do
+          info <- Portal.openFile (client handle) def >>= Portal.await
           info
             `shouldBe` Just
               ( OpenFileResults
@@ -124,23 +124,23 @@ spec = do
                   }
               )
 
-      it "should fail to decode invalid response" $ \client ->
-        withMethodResponse client fileChooserInterface "OpenFile" (successResponse []) $ do
-          (Portal.openFile def >>= Portal.await) `shouldThrow` anyException
+      it "should fail to decode invalid response" $ \handle ->
+        withMethodResponse handle fileChooserInterface "OpenFile" (successResponse []) $ do
+          (Portal.openFile (client handle) def >>= Portal.await) `shouldThrow` anyException
 
     describe "saveFile" $ do
-      it "should encode request with all Nothings" $ \client -> do
-        body <- savingRequestArguments client fileChooserInterface "SaveFile" $ do
-          void (Portal.saveFile def)
+      it "should encode request with all Nothings" $ \handle -> do
+        body <- savingRequestArguments handle fileChooserInterface "SaveFile" $ do
+          void (Portal.saveFile (client handle) def)
         body
           `shouldBe` [ toVariantText "",
                        toVariantText "",
                        toVariantMap []
                      ]
 
-      it "should encode request with all Justs" $ \client -> do
-        body <- savingRequestArguments client fileChooserInterface "SaveFile" $ do
-          void . Portal.saveFile $
+      it "should encode request with all Justs" $ \handle -> do
+        body <- savingRequestArguments handle fileChooserInterface "SaveFile" $ do
+          void . Portal.saveFile (client handle) $
             SaveFileOptions
               { parentWindow = Just "_parentWindow",
                 title = Just "_title",
@@ -211,23 +211,23 @@ spec = do
                          ]
                      ]
 
-      it "should decode response with all Nothings" $ \client -> do
+      it "should decode response with all Nothings" $ \handle -> do
         let responseBody = successResponse [("uris", toVariant ["file:///a/b/c" :: Text])]
-        withMethodResponse client fileChooserInterface "SaveFile" responseBody $ do
-          info <- Portal.saveFile def >>= Portal.await
+        withMethodResponse handle fileChooserInterface "SaveFile" responseBody $ do
+          info <- Portal.saveFile (client handle) def >>= Portal.await
           info
             `shouldBe` Just
               (SaveFileResults {uris = ["file:///a/b/c"], choices = Nothing, currentFilter = Nothing})
 
-      it "should decode response with all Justs" $ \client -> do
+      it "should decode response with all Justs" $ \handle -> do
         let responseBody =
               successResponse
                 [ ("uris", toVariant ["file:///a/b/c" :: Text]),
                   ("choices", toVariant [("_comboId" :: Text, "_optionId" :: Text)]),
                   ("current_filter", toVariant ("_filterId" :: Text, [(0 :: Word32, "*.md" :: Text)]))
                 ]
-        withMethodResponse client fileChooserInterface "SaveFile" responseBody $ do
-          info <- Portal.saveFile def >>= Portal.await
+        withMethodResponse handle fileChooserInterface "SaveFile" responseBody $ do
+          info <- Portal.saveFile (client handle) def >>= Portal.await
           info
             `shouldBe` Just
               ( SaveFileResults
@@ -237,6 +237,6 @@ spec = do
                   }
               )
 
-      it "should fail to decode invalid response" $ \client ->
-        withMethodResponse client fileChooserInterface "SaveFile" (successResponse []) $ do
-          (Portal.openFile def >>= Portal.await) `shouldThrow` anyException
+      it "should fail to decode invalid response" $ \handle ->
+        withMethodResponse handle fileChooserInterface "SaveFile" (successResponse []) $ do
+          (Portal.openFile (client handle) def >>= Portal.await) `shouldThrow` anyException

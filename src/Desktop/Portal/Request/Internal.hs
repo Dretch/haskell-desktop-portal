@@ -1,18 +1,22 @@
 module Desktop.Portal.Request.Internal
-  ( Request,
+  ( Client,
+    connect,
+    disconnect,
+    Request,
     sendRequest,
+    sendRequestSansResponse,
     await,
     cancel,
   )
 where
 
-import Control.Concurrent (MVar, putMVar, readMVar, takeMVar, tryPutMVar)
+import Control.Concurrent (MVar, putMVar, readMVar, tryPutMVar)
 import Control.Concurrent.MVar (newEmptyMVar)
-import Control.Exception (SomeException, catch, onException, throwIO)
-import Control.Monad (when)
+import Control.Exception (SomeException, catch, throwIO)
+import Control.Monad (void, when)
 import DBus (BusName, InterfaceName, MemberName, MethodCall, ObjectPath)
 import DBus qualified
-import DBus.Client (Client, MatchRule (..))
+import DBus.Client (ClientError, MatchRule (..), SignalHandler)
 import DBus.Client qualified as DBus
 import DBus.Internal.Message (Signal (..))
 import DBus.Internal.Types (Variant)
@@ -22,10 +26,25 @@ import Data.Text (Text, pack, unpack)
 import Data.Word (Word32, Word64)
 import System.Random.Stateful qualified as R
 
+-- | An handle for an active desktop portal session. Can send requests and listen for signals.
+data Client = Client
+  { dbusClient :: DBus.Client,
+    clientName :: BusName
+  }
+
+instance Eq Client where
+  a == b =
+    a.dbusClient.clientThreadID == b.dbusClient.clientThreadID
+
+instance Show Client where
+  show c =
+    "Client<" <> show c.clientName <> ", " <> show c.dbusClient.clientThreadID <> ">"
+
 -- | A portal request that may be in-progress, finished, or cancelled.
 data Request a = Request
   { client :: Client,
     methodCall :: MethodCall,
+    signalHandler :: MVar SignalHandler,
     result :: MVar (Either SomeException (Maybe a))
   }
 
@@ -35,10 +54,25 @@ instance Eq (Request a) where
 instance Show (Request a) where
   show request =
     "Request{client=<"
-      <> show request.client.clientThreadID
+      <> show request.client
       <> ">, methodCall="
       <> show request.methodCall
       <> ", result=<MVar>}"
+
+-- | Open a new client connection. This can be used to send requests and listen for signals
+-- and finally can be closed using 'disconnect'.
+connect :: IO Client
+connect = do
+  env <- DBus.getSessionAddress
+  case env of
+    Nothing -> throwIO (DBus.clientError "connect: session address not found.")
+    Just addr -> do
+      (dbusClient, clientName) <- DBus.connectWithName DBus.defaultClientOptions addr
+      pure Client {dbusClient, clientName}
+
+disconnect :: Client -> IO ()
+disconnect client = do
+  DBus.disconnect client.dbusClient
 
 -- | Wait for a request to be finished, and return the result if it succeeded. If the
 -- request is cancelled, either by the user interface or by calling 'cancel', then
@@ -50,16 +84,17 @@ await request = do
     Right res -> pure res
 
 -- | Cancel a request. This will cause any threads blocked on 'await' to receive 'Nothing'.
+-- Has no effect if the client is already cancelled or finished successfully.
 cancel :: Request a -> IO ()
 cancel request = do
   putSucceeded <- tryPutMVar request.result (Right Nothing)
   when putSucceeded $ do
-    -- Otherwise the request was already finished/cancelled. Don't bother calling
-    -- the Close method on the request because disconnection has the same effect.
-    DBus.disconnect request.client
+    readMVar request.signalHandler
+      >>= DBus.removeMatch request.client.dbusClient
 
--- | Send a request to the desktop portal D-Bus object.
+-- | Send a request to the desktop portal D-Bus object and return a handle to the response data.
 sendRequest ::
+  Client ->
   -- | Which portal interface to invoke.
   InterfaceName ->
   -- | Which method to invoke on that interface.
@@ -72,71 +107,73 @@ sendRequest ::
   (Map Text Variant -> IO a) ->
   -- | A handle to the in-progress method call.
   IO (Request a)
-sendRequest interface memberName parameters options parseResponse = do
-  (client, clientName) <- connect
-  onException (sendRequest' client clientName) (DBus.disconnect client)
-  where
-    sendRequest' client clientName = do
-      (handle, token) <- requestHandle clientName
+sendRequest client interface memberName parameters options parseResponse = do
+  (handle, token) <- requestHandle client.clientName
 
-      sentRequestVar <- newEmptyMVar
-      resultVar <- newEmptyMVar
+  signalHandlerVar <- newEmptyMVar
+  resultVar <- newEmptyMVar
 
-      -- listen before sending the request, to avoid a race condition where the
-      -- response happens before we get a chance to register the listener for it
-      _ <-
-        DBus.addMatch
-          client
-          DBus.matchAny
-            { matchPath = Just handle,
-              matchInterface = Just "org.freedesktop.portal.Request",
-              matchMember = Just "Response"
-            }
-          ( \Signal {signalBody} -> do
-              val <- case signalBody of
-                [code, result]
-                  | Just (0 :: Word32) <- DBus.fromVariant code,
-                    Just (resMap :: Map Text Variant) <- DBus.fromVariant result -> do
-                      -- catch here: it will be re-thrown in the thread that calls 'await'
-                      catch (Right . Just <$> parseResponse resMap) (pure . Left)
-                _ -> do
-                  pure (Right Nothing)
-              -- need to try because cancel might have been called and populated the mvar with Nothing
-              putSucceeded <- tryPutMVar resultVar val
-              -- we only use the connection for a single request, which is now done
-              when putSucceeded $ do
-                -- don't disconnect until we have got the response to the initial
-                -- request method call, otherwise reading the response will fail
-                takeMVar sentRequestVar
-                DBus.disconnect client
-          )
+  -- listen before sending the request, to avoid a race condition where the
+  -- response happens before we get a chance to register the listener for it
+  signalHandler <-
+    DBus.addMatch
+      client.dbusClient
+      DBus.matchAny
+        { matchPath = Just handle,
+          matchInterface = Just "org.freedesktop.portal.Request",
+          matchMember = Just "Response"
+        }
+      ( \Signal {signalBody} -> do
+          val <- case signalBody of
+            [code, result]
+              | Just (0 :: Word32) <- DBus.fromVariant code,
+                Just (resMap :: Map Text Variant) <- DBus.fromVariant result -> do
+                  -- catch here: it will be re-thrown in the thread that calls 'await'
+                  catch (Right . Just <$> parseResponse resMap) (pure . Left)
+            _ -> do
+              pure (Right Nothing)
+          signalHandler <- readMVar signalHandlerVar
+          -- removing match can fail because the client is already disconnected, since this happens
+          -- asynchronously, so we have to ignore that (happens all the time during unit tests!)
+          catch
+            (DBus.removeMatch client.dbusClient signalHandler)
+            (\(_ :: ClientError) -> pure ())
+          -- need to try because cancel might have been called and populated the mvar with Nothing
+          void (tryPutMVar resultVar val)
+      )
+  putMVar signalHandlerVar signalHandler
 
-      let methodCall =
-            (DBus.methodCall "/org/freedesktop/portal/desktop" interface memberName)
-              { DBus.methodCallDestination = Just "org.freedesktop.portal.Desktop",
-                DBus.methodCallBody =
-                  parameters <> [DBus.toVariant (Map.insert "handle_token" (DBus.toVariant token) options)]
-              }
+  let methodCall =
+        (portalMethodCall interface memberName)
+          { DBus.methodCallBody =
+              parameters <> [DBus.toVariant (Map.insert "handle_token" (DBus.toVariant token) options)]
+          }
 
-      reply <- DBus.call_ client methodCall
-      putMVar sentRequestVar ()
-      case DBus.methodReturnBody reply of
-        [x]
-          | Just (objX :: ObjectPath) <- DBus.fromVariant x ->
-              if objX == handle
-                then pure (Request client methodCall resultVar)
-                else
-                  let msg = "Unexpected handle: " <> show objX <> " should be " <> show handle <> ". Probably xdg-desktop-portal is too old."
-                   in throwIO (DBus.clientError msg)
-        _ ->
-          throwIO (DBus.clientError ("Request reply in unexpected format: " <> show reply))
+  reply <- DBus.call_ client.dbusClient methodCall
+  case DBus.methodReturnBody reply of
+    [x]
+      | Just (objX :: ObjectPath) <- DBus.fromVariant x ->
+          if objX == handle
+            then pure (Request client methodCall signalHandlerVar resultVar)
+            else
+              let msg = "Unexpected handle: " <> show objX <> " should be " <> show handle <> ". Probably xdg-desktop-portal is too old."
+               in throwIO (DBus.clientError msg)
+    _ ->
+      throwIO (DBus.clientError ("Request reply in unexpected format: " <> show reply))
 
-connect :: IO (Client, BusName)
-connect = do
-  env <- DBus.getSessionAddress
-  case env of
-    Nothing -> throwIO (DBus.clientError "connect: session address not found.")
-    Just addr -> DBus.connectWithName DBus.defaultClientOptions addr
+-- | Send a request to the desktop portal D-Bus object, but don't wait for a response.
+sendRequestSansResponse ::
+  Client ->
+  -- | Which portal interface to invoke.
+  InterfaceName ->
+  -- | Which method to invoke on that interface.
+  MemberName ->
+  -- | Arguments to pass to the method.
+  [Variant] ->
+  IO ()
+sendRequestSansResponse client interface memberName methodCallBody = do
+  let methodCall = (portalMethodCall interface memberName) {DBus.methodCallBody}
+  void (DBus.call_ client.dbusClient methodCall)
 
 requestToken :: IO Text
 requestToken = do
@@ -150,3 +187,9 @@ requestHandle clientName = do
   where
     escapeClientName =
       map (\case '.' -> '_'; c -> c) . drop 1 . DBus.formatBusName
+
+portalMethodCall :: InterfaceName -> MemberName -> MethodCall
+portalMethodCall interface memberName =
+  (DBus.methodCall "/org/freedesktop/portal/desktop" interface memberName)
+    { DBus.methodCallDestination = Just "org.freedesktop.portal.Desktop"
+    }

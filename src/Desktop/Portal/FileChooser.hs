@@ -28,7 +28,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
 import Data.Word (Word32)
-import Desktop.Portal.Request.Internal (Request, sendRequest)
+import Desktop.Portal.Request.Internal (Client, Request, sendRequest)
 import Desktop.Portal.Util (encodeNullTerminatedUtf8, mapJust, optionalFromVariant, toVariantPair, toVariantPair')
 
 data Filter = Filter
@@ -135,9 +135,9 @@ data SaveFileResults = SaveFileResults
 fileChooserInterface :: InterfaceName
 fileChooserInterface = "org.freedesktop.portal.FileChooser"
 
-openFile :: OpenFileOptions -> IO (Request OpenFileResults)
-openFile options =
-  sendRequest fileChooserInterface "OpenFile" args optionsArg parseOpenFileResponse
+openFile :: Client -> OpenFileOptions -> IO (Request OpenFileResults)
+openFile client options =
+  sendRequest client fileChooserInterface "OpenFile" args optionsArg parseOpenFileResponse
   where
     args = [DBus.toVariant parentWindow, DBus.toVariant title]
     parentWindow = fromMaybe "" options.parentWindow
@@ -153,9 +153,9 @@ openFile options =
           toVariantPair' (fmap encodeCombo) "choices" options.choices
         ]
 
-saveFile :: SaveFileOptions -> IO (Request SaveFileResults)
-saveFile options =
-  sendRequest fileChooserInterface "SaveFile" args optionsArgs parseResponse
+saveFile :: Client -> SaveFileOptions -> IO (Request SaveFileResults)
+saveFile client options =
+  sendRequest client fileChooserInterface "SaveFile" args optionsArgs parseResponse
   where
     args = [DBus.toVariant parentWindow, DBus.toVariant title]
     parentWindow = fromMaybe "" options.parentWindow

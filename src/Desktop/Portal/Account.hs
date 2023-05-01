@@ -14,7 +14,7 @@ import Data.Default.Class (Default (def))
 import Data.Map qualified as Map
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
-import Desktop.Portal.Request.Internal (Request, sendRequest)
+import Desktop.Portal.Request.Internal (Client, Request, sendRequest)
 import Desktop.Portal.Util (optionalFromVariant, toVariantPair)
 
 data GetUserInformationOptions = GetUserInformationOptions
@@ -40,9 +40,9 @@ data GetUserInformationResults = GetUserInformationResults
 accountInterface :: InterfaceName
 accountInterface = "org.freedesktop.portal.Account"
 
-getUserInformation :: GetUserInformationOptions -> IO (Request GetUserInformationResults)
-getUserInformation options =
-  sendRequest accountInterface "GetUserInformation" [window] optionsArg parseResponse
+getUserInformation :: Client -> GetUserInformationOptions -> IO (Request GetUserInformationResults)
+getUserInformation client options =
+  sendRequest client accountInterface "GetUserInformation" [window] optionsArg parseResponse
   where
     window = DBus.toVariant (fromMaybe "" options.window)
     optionsArg =

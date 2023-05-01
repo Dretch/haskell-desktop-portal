@@ -2,7 +2,8 @@ module Desktop.Portal.TestUtil
   ( successResponse,
     toVariantMap,
     toVariantText,
-    TestClient,
+    TestHandle,
+    client,
     withTestBus,
     withMethodResponse,
     savingRequestArguments,
@@ -21,13 +22,20 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text (Text)
 import Data.Word (Word32)
+import Desktop.Portal qualified as Portal
 import GHC.IO.Handle (hGetLine)
 import System.Environment (lookupEnv, setEnv)
 import System.Process (StdStream (..), createProcess, proc, std_out, terminateProcess)
 
-newtype TestClient = TestClient Client
+data TestHandle = TestHandle
+  { serverClient :: Client,
+    clientClient :: Portal.Client
+  }
 
-withTestBus :: (TestClient -> IO ()) -> IO ()
+client :: TestHandle -> Portal.Client
+client c = c.clientClient
+
+withTestBus :: (TestHandle -> IO ()) -> IO ()
 withTestBus cmd = do
   let dbusArgs =
         [ "--print-address",
@@ -39,53 +47,55 @@ withTestBus cmd = do
   (_, Just hOut, _, ph) <-
     createProcess (proc "dbus-daemon" dbusArgs) {std_out = CreatePipe}
   oldSessionAddr <- lookupEnv sessionAddressEnv
-  flip finally (teardown oldSessionAddr ph) $ do
+  flip finally (stopDbus oldSessionAddr ph) $ do
     addrLine <- hGetLine hOut
     setEnv sessionAddressEnv addrLine
-    client <- connectSession
-    flip finally (disconnect client) $ do
-      requestName client portalBusName [nameDoNotQueue] >>= \case
-        NamePrimaryOwner -> cmd (TestClient client)
-        reply -> fail ("Can't get portal name: " <> show reply)
+    serverClient <- connectSession
+    flip finally (disconnect serverClient) $ do
+      clientClient <- Portal.connect
+      flip finally (Portal.disconnect clientClient) $ do
+        requestName serverClient portalBusName [nameDoNotQueue] >>= \case
+          NamePrimaryOwner -> cmd TestHandle {serverClient, clientClient}
+          reply -> fail ("Can't get portal name: " <> show reply)
   where
-    teardown oldSessionAddr ph = do
+    stopDbus oldSessionAddr ph = do
       terminateProcess ph
       maybe (pure ()) (setEnv sessionAddressEnv) oldSessionAddr
 
-withMethodResponse :: TestClient -> InterfaceName -> MemberName -> [Variant] -> IO () -> IO ()
-withMethodResponse (TestClient client) interfaceName methodName methodResponse cmd = do
+withMethodResponse :: TestHandle -> InterfaceName -> MemberName -> [Variant] -> IO () -> IO ()
+withMethodResponse handle interfaceName methodName methodResponse cmd = do
   export
-    client
+    handle.serverClient
     portalObjectPath
     defaultInterface
       { interfaceName,
         interfaceMethods = [makeMethod methodName (Signature []) (Signature []) handleMethodCall]
       }
   cmd
-  unexport client portalObjectPath
+  unexport handle.serverClient portalObjectPath
   where
     handleMethodCall methodCall = do
-      emitResponseSignal client methodCall methodResponse
+      emitResponseSignal handle methodCall methodResponse
       pure (ReplyReturn [toVariant (methodRequestHandle methodCall)])
 
-savingRequestArguments :: TestClient -> InterfaceName -> MemberName -> IO () -> IO [Variant]
-savingRequestArguments (TestClient client) interfaceName methodName cmd = do
+savingRequestArguments :: TestHandle -> InterfaceName -> MemberName -> IO () -> IO [Variant]
+savingRequestArguments handle interfaceName methodName cmd = do
   argsVar <- newEmptyMVar
   export
-    client
+    handle.serverClient
     portalObjectPath
     defaultInterface
       { interfaceName,
         interfaceMethods = [makeMethod methodName (Signature []) (Signature []) (handleMethodCall argsVar)]
       }
   cmd
-  unexport client portalObjectPath
+  unexport handle.serverClient portalObjectPath
   tryReadMVar argsVar >>= \case
     Just args -> pure (removeHandleToken args)
     Nothing -> fail "No method was called during the callback!"
   where
     handleMethodCall argsVar methodCall = do
-      emitResponseSignal client methodCall [toVariant (1 :: Word32)]
+      emitResponseSignal handle methodCall [toVariant (1 :: Word32)]
       putSucceeded <- liftIO $ tryPutMVar argsVar (methodCallBody methodCall)
       unless putSucceeded $
         fail "Method arguments already saved: is more than one method being called?"
@@ -99,11 +109,11 @@ savingRequestArguments (TestClient client) interfaceName methodName cmd = do
         | otherwise ->
             args
 
-emitResponseSignal :: MonadIO m => Client -> MethodCall -> [Variant] -> m ()
-emitResponseSignal client methodCall signalBody = do
+emitResponseSignal :: MonadIO m => TestHandle -> MethodCall -> [Variant] -> m ()
+emitResponseSignal handle methodCall signalBody = do
   void . liftIO $
     emit
-      client
+      handle.serverClient
       Signal
         { signalPath = methodRequestHandle methodCall,
           signalInterface = "org.freedesktop.portal.Request",
