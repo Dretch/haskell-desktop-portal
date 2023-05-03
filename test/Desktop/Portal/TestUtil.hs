@@ -7,6 +7,8 @@ module Desktop.Portal.TestUtil
     withTestBus,
     withMethodResponse,
     savingRequestArguments,
+    savingRequestArguments_,
+    sendSignal,
   )
 where
 
@@ -80,6 +82,10 @@ withMethodResponse handle interfaceName methodName methodResponse cmd = do
 
 savingRequestArguments :: TestHandle -> InterfaceName -> MemberName -> IO () -> IO [Variant]
 savingRequestArguments handle interfaceName methodName cmd = do
+  savingRequestArguments_ handle interfaceName methodName True cmd
+
+savingRequestArguments_ :: TestHandle -> InterfaceName -> MemberName -> Bool -> IO () -> IO [Variant]
+savingRequestArguments_ handle interfaceName methodName hasResponse cmd = do
   argsVar <- newEmptyMVar
   export
     handle.serverClient
@@ -95,19 +101,36 @@ savingRequestArguments handle interfaceName methodName cmd = do
     Nothing -> fail "No method was called during the callback!"
   where
     handleMethodCall argsVar methodCall = do
-      emitResponseSignal handle methodCall [toVariant (1 :: Word32)]
       putSucceeded <- liftIO $ tryPutMVar argsVar (methodCallBody methodCall)
       unless putSucceeded $
         fail "Method arguments already saved: is more than one method being called?"
-      pure (ReplyReturn [toVariant (methodRequestHandle methodCall)])
+      if hasResponse
+        then do
+          emitResponseSignal handle methodCall [toVariant (1 :: Word32)]
+          pure (ReplyReturn [toVariant (methodRequestHandle methodCall)])
+        else do
+          pure (ReplyReturn [])
 
     removeHandleToken = \case
       args
-        | (not (null args)),
+        | hasResponse && (not (null args)),
           Variant (ValueMap kt vt argsMap) <- args !! (length args - 1) ->
             take (length args - 1) args <> [Variant (ValueMap kt vt (Map.delete (AtomText "handle_token") argsMap))]
         | otherwise ->
             args
+
+sendSignal :: TestHandle -> InterfaceName -> MemberName -> [Variant] -> IO ()
+sendSignal handle signalInterface signalMember signalBody =
+  emit
+    handle.serverClient
+    Signal
+      { signalPath = "/org/freedesktop/portal/desktop",
+        signalInterface,
+        signalMember,
+        signalSender = Just portalBusName,
+        signalDestination = Just (Portal.clientName handle.clientClient),
+        signalBody
+      }
 
 emitResponseSignal :: MonadIO m => TestHandle -> MethodCall -> [Variant] -> m ()
 emitResponseSignal handle methodCall signalBody = do

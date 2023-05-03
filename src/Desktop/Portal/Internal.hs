@@ -1,12 +1,16 @@
-module Desktop.Portal.Request.Internal
+module Desktop.Portal.Internal
   ( Client,
     connect,
     disconnect,
+    clientName,
     Request,
     sendRequest,
     sendRequestSansResponse,
     await,
     cancel,
+    SignalHandler,
+    handleSignal,
+    cancelSignalHandler,
   )
 where
 
@@ -16,7 +20,7 @@ import Control.Exception (SomeException, catch, throwIO)
 import Control.Monad (void, when)
 import DBus (BusName, InterfaceName, MemberName, MethodCall, ObjectPath)
 import DBus qualified
-import DBus.Client (ClientError, MatchRule (..), SignalHandler)
+import DBus.Client (ClientError, MatchRule (..))
 import DBus.Client qualified as DBus
 import DBus.Internal.Message (Signal (..))
 import DBus.Internal.Types (Variant)
@@ -26,7 +30,7 @@ import Data.Text (Text, pack, unpack)
 import Data.Word (Word32, Word64)
 import System.Random.Stateful qualified as R
 
--- | An handle for an active desktop portal session. Can send requests and listen for signals.
+-- | A handle for an active desktop portal session. Can send requests and listen for signals.
 data Client = Client
   { dbusClient :: DBus.Client,
     clientName :: BusName
@@ -44,7 +48,7 @@ instance Show Client where
 data Request a = Request
   { client :: Client,
     methodCall :: MethodCall,
-    signalHandler :: MVar SignalHandler,
+    signalHandler :: MVar DBus.SignalHandler,
     result :: MVar (Either SomeException (Maybe a))
   }
 
@@ -58,6 +62,12 @@ instance Show (Request a) where
       <> ">, methodCall="
       <> show request.methodCall
       <> ", result=<MVar>}"
+
+-- | A listener for a particular signal. Can be cancelled with 'cancelSignalHandler'.
+data SignalHandler = SignalHandler
+  { client :: Client,
+    dbusSignalHandler :: DBus.SignalHandler
+  }
 
 -- | Open a new client connection. This can be used to send requests and listen for signals
 -- and finally can be closed using 'disconnect'.
@@ -73,6 +83,10 @@ connect = do
 disconnect :: Client -> IO ()
 disconnect client = do
   DBus.disconnect client.dbusClient
+
+-- | Get the unique name given to the client by D-BUS.
+clientName :: Client -> BusName
+clientName = (.clientName)
 
 -- | Wait for a request to be finished, and return the result if it succeeded. If the
 -- request is cancelled, either by the user interface or by calling 'cancel', then
@@ -174,6 +188,24 @@ sendRequestSansResponse ::
 sendRequestSansResponse client interface memberName methodCallBody = do
   let methodCall = (portalMethodCall interface memberName) {DBus.methodCallBody}
   void (DBus.call_ client.dbusClient methodCall)
+
+handleSignal :: Client -> InterfaceName -> MemberName -> ([Variant] -> IO ()) -> IO SignalHandler
+handleSignal client interface memberName handler = do
+  dbusSignalHandler <-
+    DBus.addMatch
+      client.dbusClient
+      DBus.matchAny
+        { matchInterface = Just interface,
+          matchMember = Just memberName,
+          matchDestination = Just client.clientName
+        }
+      (\Signal {signalBody} -> handler signalBody)
+  pure SignalHandler {dbusSignalHandler, client}
+
+-- | Prevent any future invocations of the given signal handler.
+cancelSignalHandler :: SignalHandler -> IO ()
+cancelSignalHandler handler =
+  DBus.removeMatch handler.client.dbusClient handler.dbusSignalHandler
 
 requestToken :: IO Text
 requestToken = do

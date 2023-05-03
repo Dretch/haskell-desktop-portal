@@ -36,6 +36,7 @@ default-extensions:
 - OverloadedStrings
 - RecordWildCards
 - ScopedTypeVariables
+- TupleSections
 
 ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
 
@@ -45,7 +46,7 @@ library:
   - Desktop.Portal
   - Desktop.Portal.Account
   - Desktop.Portal.FileChooser
-  - Desktop.Portal.Request
+  - Desktop.Portal.Notification
 
 tests:
   spec:

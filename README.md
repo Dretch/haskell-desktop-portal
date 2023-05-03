@@ -19,7 +19,7 @@ A Haskell wrapper for the [XDG Desktop Portal](https://github.com/flatpak/xdg-de
 - Module/function/field names should mimic the underlying portal API as much as possible.
 - Functions should generally be tested (see existing tests for examples).
 - Functions should take records called `...Options` and return records called `...Results`.
-- `...Options` records should have a `Default` instance.
+- `...Options` records should have a `Default` instance where all fields have a reasonable empty value.
 - Record fields should not have unique prefixes.
 
 ### To format the source code

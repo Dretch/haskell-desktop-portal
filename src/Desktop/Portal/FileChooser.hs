@@ -28,7 +28,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
 import Data.Word (Word32)
-import Desktop.Portal.Request.Internal (Client, Request, sendRequest)
+import Desktop.Portal.Internal (Client, Request, sendRequest)
 import Desktop.Portal.Util (encodeNullTerminatedUtf8, mapJust, optionalFromVariant, toVariantPair, toVariantPair')
 
 data Filter = Filter

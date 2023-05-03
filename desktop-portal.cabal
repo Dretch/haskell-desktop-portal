@@ -28,9 +28,9 @@ library
       Desktop.Portal
       Desktop.Portal.Account
       Desktop.Portal.FileChooser
-      Desktop.Portal.Request
+      Desktop.Portal.Notification
   other-modules:
-      Desktop.Portal.Request.Internal
+      Desktop.Portal.Internal
       Desktop.Portal.Util
       Paths_desktop_portal
   hs-source-dirs:
@@ -48,6 +48,7 @@ library
       OverloadedStrings
       RecordWildCards
       ScopedTypeVariables
+      TupleSections
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
@@ -66,6 +67,7 @@ test-suite spec
   other-modules:
       Desktop.Portal.AccountSpec
       Desktop.Portal.FileChooserSpec
+      Desktop.Portal.NotificationSpec
       Desktop.Portal.TestUtil
       Paths_desktop_portal
   hs-source-dirs:
@@ -83,6 +85,7 @@ test-suite spec
       OverloadedStrings
       RecordWildCards
       ScopedTypeVariables
+      TupleSections
   ghc-options: -Wall -Wcompat -Wincomplete-record-updates -Wincomplete-uni-patterns -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5

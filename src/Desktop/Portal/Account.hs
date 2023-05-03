@@ -14,7 +14,7 @@ import Data.Default.Class (Default (def))
 import Data.Map qualified as Map
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
-import Desktop.Portal.Request.Internal (Client, Request, sendRequest)
+import Desktop.Portal.Internal (Client, Request, sendRequest)
 import Desktop.Portal.Util (optionalFromVariant, toVariantPair)
 
 data GetUserInformationOptions = GetUserInformationOptions
