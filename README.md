@@ -9,6 +9,10 @@ A Haskell wrapper for the [XDG Desktop Portal](https://github.com/flatpak/xdg-de
 - **Q. Why does this not use Template Haskell to generate interface code from the [XML API definitions](https://github.com/flatpak/xdg-desktop-portal/data)**?
 - **A.** The Portal API does not lend itself to code generation because inputs and outputs are mostly informally defined via vardicts rather than via simple positional parameters. Also the XML definitions are LGPL, which would make this library LGPL too.
 
+## API Documentation
+
+See the generated docs on [Hackage](https://hackage.haskell.org/package/desktop-portal).
+
 ## Development Guide
 
 ### How to contribute
