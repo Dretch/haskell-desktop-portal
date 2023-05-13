@@ -26,7 +26,7 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (catMaybes, listToMaybe)
 import Data.Text (Text)
-import Desktop.Portal.Internal (Client, SignalHandler, handleSignal, sendRequestSansResponse)
+import Desktop.Portal.Internal (Client, SignalHandler, callMethod_, handleSignal)
 import Desktop.Portal.Util (toVariantPair, toVariantPair')
 import Prelude hiding (id)
 
@@ -86,7 +86,7 @@ notificationInterface = "org.freedesktop.portal.Notification"
 
 addNotification :: Client -> AddNotificationOptions -> IO ()
 addNotification client options =
-  sendRequestSansResponse client notificationInterface "AddNotification" [id, optionsArg]
+  callMethod_ client notificationInterface "AddNotification" [id, optionsArg]
   where
     id = DBus.toVariant options.id
     optionsArg =
@@ -102,7 +102,7 @@ addNotification client options =
 
 removeNotification :: Client -> RemoveNotificationOptions -> IO ()
 removeNotification client options =
-  sendRequestSansResponse client notificationInterface "RemoveNotification" [id]
+  callMethod_ client notificationInterface "RemoveNotification" [id]
   where
     id = DBus.toVariant options.id
 

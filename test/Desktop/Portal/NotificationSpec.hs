@@ -9,7 +9,7 @@ import Data.Word (Word32)
 import Desktop.Portal (AddNotificationOptions (..), NotificationButton (..), NotificationIcon (..), NotificationPriority (..), RemoveNotificationOptions (..))
 import Desktop.Portal qualified as Portal
 import Desktop.Portal.TestUtil
-import Test.Hspec (Spec, around, describe, it, shouldBe)
+import Test.Hspec (Spec, around, describe, it, shouldBe, shouldReturn)
 import Prelude hiding (id)
 
 notificationInterface :: InterfaceName
@@ -20,7 +20,7 @@ spec = do
   around withTestBus $ do
     describe "addNotification" $ do
       it "should encode request with all Nothings" $ \handle -> do
-        body <- savingRequestArguments_ handle notificationInterface "AddNotification" False $ do
+        body <- savingMethodArguments handle notificationInterface "AddNotification" [] $ do
           void (Portal.addNotification (client handle) (Portal.addNotificationOptions "id"))
         body
           `shouldBe` [ toVariantText "id",
@@ -28,7 +28,7 @@ spec = do
                      ]
 
       it "should encode request with all Justs" $ \handle -> do
-        body <- savingRequestArguments_ handle notificationInterface "AddNotification" False $ do
+        body <- savingMethodArguments handle notificationInterface "AddNotification" [] $ do
           let options =
                 AddNotificationOptions
                   { id = "id",
@@ -63,7 +63,7 @@ spec = do
 
     describe "removeNotification" $ do
       it "should encode request" $ \handle -> do
-        body <- savingRequestArguments_ handle notificationInterface "RemoveNotification" False $ do
+        body <- savingMethodArguments handle notificationInterface "RemoveNotification" [] $ do
           void (Portal.removeNotification (client handle) (RemoveNotificationOptions "id"))
         body
           `shouldBe` [toVariantText "id"]
@@ -77,5 +77,5 @@ spec = do
             (\id name param -> putMVar decodedSignalVar (id, name, param))
         let signalArgs = [toVariantText "id", toVariantText "action", toVariant [toVariant (42 :: Word32)]]
         sendSignal handle notificationInterface "ActionInvoked" signalArgs
-        decoded <- readMVar decodedSignalVar
-        decoded `shouldBe` ("id", "action", Just (toVariant (42 :: Word32)))
+        readMVar decodedSignalVar
+          `shouldReturn` ("id", "action", Just (toVariant (42 :: Word32)))

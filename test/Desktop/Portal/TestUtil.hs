@@ -6,9 +6,11 @@ module Desktop.Portal.TestUtil
     client,
     withTestBus,
     withMethodResponse,
+    withRequestResponse,
+    savingMethodArguments,
     savingRequestArguments,
-    savingRequestArguments_,
     sendSignal,
+    dbusClientException,
   )
 where
 
@@ -17,7 +19,7 @@ import Control.Exception (finally)
 import Control.Monad (unless, void)
 import Control.Monad.IO.Class (MonadIO (..))
 import DBus (BusName, InterfaceName, IsVariant (fromVariant), MemberName, MethodCall (..), ObjectPath, Variant, formatBusName, objectPath_, toVariant)
-import DBus.Client (Client, Interface (..), Reply (..), RequestNameReply (..), connectSession, defaultInterface, disconnect, emit, export, makeMethod, nameDoNotQueue, requestName, unexport)
+import DBus.Client (Client, ClientError, Interface (..), Reply (..), RequestNameReply (..), connectSession, defaultInterface, disconnect, emit, export, makeMethod, nameDoNotQueue, requestName, unexport)
 import DBus.Internal.Message (Signal (..))
 import DBus.Internal.Types (Atom (AtomText), Signature (..), Value (ValueMap), Variant (Variant))
 import Data.Map (Map)
@@ -28,6 +30,7 @@ import Desktop.Portal qualified as Portal
 import GHC.IO.Handle (hGetLine)
 import System.Environment (lookupEnv, setEnv)
 import System.Process (StdStream (..), createProcess, proc, std_out, terminateProcess)
+import Test.Hspec.Expectations (Selector)
 
 data TestHandle = TestHandle
   { serverClient :: Client,
@@ -71,6 +74,18 @@ withMethodResponse handle interfaceName methodName methodResponse cmd = do
     portalObjectPath
     defaultInterface
       { interfaceName,
+        interfaceMethods = [makeMethod methodName (Signature []) (Signature []) (const . pure . ReplyReturn $ methodResponse)]
+      }
+  cmd
+  unexport handle.serverClient portalObjectPath
+
+withRequestResponse :: TestHandle -> InterfaceName -> MemberName -> [Variant] -> IO () -> IO ()
+withRequestResponse handle interfaceName methodName methodResponse cmd = do
+  export
+    handle.serverClient
+    portalObjectPath
+    defaultInterface
+      { interfaceName,
         interfaceMethods = [makeMethod methodName (Signature []) (Signature []) handleMethodCall]
       }
   cmd
@@ -80,12 +95,30 @@ withMethodResponse handle interfaceName methodName methodResponse cmd = do
       emitResponseSignal handle methodCall methodResponse
       pure (ReplyReturn [toVariant (methodRequestHandle methodCall)])
 
+savingMethodArguments :: TestHandle -> InterfaceName -> MemberName -> [Variant] -> IO () -> IO [Variant]
+savingMethodArguments handle interfaceName methodName response cmd = do
+  argsVar <- newEmptyMVar
+  export
+    handle.serverClient
+    portalObjectPath
+    defaultInterface
+      { interfaceName,
+        interfaceMethods = [makeMethod methodName (Signature []) (Signature []) (handleMethodCall argsVar)]
+      }
+  cmd
+  unexport handle.serverClient portalObjectPath
+  tryReadMVar argsVar >>= \case
+    Just args -> pure args
+    Nothing -> fail "No method was called during the callback!"
+  where
+    handleMethodCall argsVar methodCall = do
+      putSucceeded <- liftIO $ tryPutMVar argsVar (methodCallBody methodCall)
+      unless putSucceeded $
+        fail "Method arguments already saved: is more than one method being called?"
+      pure (ReplyReturn response)
+
 savingRequestArguments :: TestHandle -> InterfaceName -> MemberName -> IO () -> IO [Variant]
 savingRequestArguments handle interfaceName methodName cmd = do
-  savingRequestArguments_ handle interfaceName methodName True cmd
-
-savingRequestArguments_ :: TestHandle -> InterfaceName -> MemberName -> Bool -> IO () -> IO [Variant]
-savingRequestArguments_ handle interfaceName methodName hasResponse cmd = do
   argsVar <- newEmptyMVar
   export
     handle.serverClient
@@ -104,16 +137,12 @@ savingRequestArguments_ handle interfaceName methodName hasResponse cmd = do
       putSucceeded <- liftIO $ tryPutMVar argsVar (methodCallBody methodCall)
       unless putSucceeded $
         fail "Method arguments already saved: is more than one method being called?"
-      if hasResponse
-        then do
-          emitResponseSignal handle methodCall [toVariant (1 :: Word32)]
-          pure (ReplyReturn [toVariant (methodRequestHandle methodCall)])
-        else do
-          pure (ReplyReturn [])
+      emitResponseSignal handle methodCall [toVariant (1 :: Word32)]
+      pure (ReplyReturn [toVariant (methodRequestHandle methodCall)])
 
     removeHandleToken = \case
       args
-        | hasResponse && (not (null args)),
+        | not (null args),
           Variant (ValueMap kt vt argsMap) <- args !! (length args - 1) ->
             take (length args - 1) args <> [Variant (ValueMap kt vt (Map.delete (AtomText "handle_token") argsMap))]
         | otherwise ->
@@ -182,3 +211,6 @@ toVariantMap = toVariant . Map.fromList
 -- | Specialised 'toVariant' to avoid need for type assertions.
 toVariantText :: Text -> Variant
 toVariantText = toVariant
+
+dbusClientException :: Selector ClientError
+dbusClientException = const True

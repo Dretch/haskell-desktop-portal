@@ -9,7 +9,7 @@ import Data.Word (Word32)
 import Desktop.Portal (ChoiceCombo (..), ChoiceComboOption (..), ChoiceComboSelection (..), Filter (..), FilterFileType (..), OpenFileOptions (..), OpenFileResults (..), SaveFileOptions (..), SaveFileResults (..))
 import Desktop.Portal qualified as Portal
 import Desktop.Portal.TestUtil
-import Test.Hspec (Spec, anyException, around, describe, it, shouldBe, shouldThrow)
+import Test.Hspec (Spec, around, describe, it, shouldBe, shouldReturn, shouldThrow)
 
 fileChooserInterface :: InterfaceName
 fileChooserInterface = "org.freedesktop.portal.FileChooser"
@@ -100,10 +100,9 @@ spec = do
 
       it "should decode response with all Nothings" $ \handle -> do
         let responseBody = successResponse [("uris", toVariant ["file:///a/b/c" :: Text])]
-        withMethodResponse handle fileChooserInterface "OpenFile" responseBody $ do
-          info <- Portal.openFile (client handle) def >>= Portal.await
-          info
-            `shouldBe` Just
+        withRequestResponse handle fileChooserInterface "OpenFile" responseBody $ do
+          (Portal.openFile (client handle) def >>= Portal.await)
+            `shouldReturn` Just
               (OpenFileResults {uris = ["file:///a/b/c"], choices = Nothing, currentFilter = Nothing})
 
       it "should decode response with all Justs" $ \handle -> do
@@ -113,10 +112,9 @@ spec = do
                   ("choices", toVariant [("_comboId" :: Text, "_optionId" :: Text)]),
                   ("current_filter", toVariant ("_filterId" :: Text, [(0 :: Word32, "*.md" :: Text)]))
                 ]
-        withMethodResponse handle fileChooserInterface "OpenFile" responseBody $ do
-          info <- Portal.openFile (client handle) def >>= Portal.await
-          info
-            `shouldBe` Just
+        withRequestResponse handle fileChooserInterface "OpenFile" responseBody $ do
+          (Portal.openFile (client handle) def >>= Portal.await)
+            `shouldReturn` Just
               ( OpenFileResults
                   { uris = ["file:///a/b/c"],
                     choices = Just [ChoiceComboSelection {comboId = "_comboId", optionId = "_optionId"}],
@@ -125,8 +123,8 @@ spec = do
               )
 
       it "should fail to decode invalid response" $ \handle ->
-        withMethodResponse handle fileChooserInterface "OpenFile" (successResponse []) $ do
-          (Portal.openFile (client handle) def >>= Portal.await) `shouldThrow` anyException
+        withRequestResponse handle fileChooserInterface "OpenFile" (successResponse []) $ do
+          (Portal.openFile (client handle) def >>= Portal.await) `shouldThrow` dbusClientException
 
     describe "saveFile" $ do
       it "should encode request with all Nothings" $ \handle -> do
@@ -213,10 +211,9 @@ spec = do
 
       it "should decode response with all Nothings" $ \handle -> do
         let responseBody = successResponse [("uris", toVariant ["file:///a/b/c" :: Text])]
-        withMethodResponse handle fileChooserInterface "SaveFile" responseBody $ do
-          info <- Portal.saveFile (client handle) def >>= Portal.await
-          info
-            `shouldBe` Just
+        withRequestResponse handle fileChooserInterface "SaveFile" responseBody $ do
+          (Portal.saveFile (client handle) def >>= Portal.await)
+            `shouldReturn` Just
               (SaveFileResults {uris = ["file:///a/b/c"], choices = Nothing, currentFilter = Nothing})
 
       it "should decode response with all Justs" $ \handle -> do
@@ -226,10 +223,9 @@ spec = do
                   ("choices", toVariant [("_comboId" :: Text, "_optionId" :: Text)]),
                   ("current_filter", toVariant ("_filterId" :: Text, [(0 :: Word32, "*.md" :: Text)]))
                 ]
-        withMethodResponse handle fileChooserInterface "SaveFile" responseBody $ do
-          info <- Portal.saveFile (client handle) def >>= Portal.await
-          info
-            `shouldBe` Just
+        withRequestResponse handle fileChooserInterface "SaveFile" responseBody $ do
+          (Portal.saveFile (client handle) def >>= Portal.await)
+            `shouldReturn` Just
               ( SaveFileResults
                   { uris = ["file:///a/b/c"],
                     choices = Just [ChoiceComboSelection {comboId = "_comboId", optionId = "_optionId"}],
@@ -238,5 +234,5 @@ spec = do
               )
 
       it "should fail to decode invalid response" $ \handle ->
-        withMethodResponse handle fileChooserInterface "SaveFile" (successResponse []) $ do
-          (Portal.openFile (client handle) def >>= Portal.await) `shouldThrow` anyException
+        withRequestResponse handle fileChooserInterface "SaveFile" (successResponse []) $ do
+          (Portal.openFile (client handle) def >>= Portal.await) `shouldThrow` dbusClientException

@@ -1,5 +1,5 @@
 name:                desktop-portal
-version:             0.1.0.0
+version:             0.1.1.0
 license:             MIT
 synopsis:            Desktop Portal.
 description:         A Haskell wrapper for the XDG Desktop Portal DBUS API.
@@ -47,6 +47,7 @@ library:
   - Desktop.Portal.Account
   - Desktop.Portal.FileChooser
   - Desktop.Portal.Notification
+  - Desktop.Portal.Settings
 
 tests:
   spec:
@@ -54,4 +55,5 @@ tests:
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
     dependencies:
     - desktop-portal
+    - hspec-expectations
     - process

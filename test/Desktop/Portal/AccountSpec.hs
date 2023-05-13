@@ -6,7 +6,7 @@ import Data.Default.Class (Default (def))
 import Desktop.Portal (GetUserInformationOptions (..), GetUserInformationResults (..))
 import Desktop.Portal qualified as Portal
 import Desktop.Portal.TestUtil
-import Test.Hspec (Spec, anyException, around, describe, it, shouldBe, shouldThrow)
+import Test.Hspec (Spec, around, describe, it, shouldBe, shouldReturn, shouldThrow)
 
 accountInterface :: InterfaceName
 accountInterface = "org.freedesktop.portal.Account"
@@ -38,9 +38,9 @@ spec = do
                   ("name", toVariantText "_name"),
                   ("image", toVariantText "_img")
                 ]
-        withMethodResponse handle accountInterface "GetUserInformation" responseBody $ do
-          info <- Portal.getUserInformation (client handle) def >>= Portal.await
-          info `shouldBe` Just (GetUserInformationResults "_id" "_name" (Just "_img"))
+        withRequestResponse handle accountInterface "GetUserInformation" responseBody $ do
+          (Portal.getUserInformation (client handle) def >>= Portal.await)
+            `shouldReturn` Just (GetUserInformationResults "_id" "_name" (Just "_img"))
 
       it "should decode response without image" $ \handle -> do
         let responseBody =
@@ -48,10 +48,10 @@ spec = do
                 [ ("id", toVariantText "_id"),
                   ("name", toVariantText "_name")
                 ]
-        withMethodResponse handle accountInterface "GetUserInformation" responseBody $ do
-          info <- Portal.getUserInformation (client handle) def >>= Portal.await
-          info `shouldBe` Just (GetUserInformationResults "_id" "_name" Nothing)
+        withRequestResponse handle accountInterface "GetUserInformation" responseBody $ do
+          (Portal.getUserInformation (client handle) def >>= Portal.await)
+            `shouldReturn` Just (GetUserInformationResults "_id" "_name" Nothing)
 
       it "should fail to decode invalid response" $ \handle ->
-        withMethodResponse handle accountInterface "GetUserInformation" (successResponse []) $ do
-          (Portal.getUserInformation (client handle) def >>= Portal.await) `shouldThrow` anyException
+        withRequestResponse handle accountInterface "GetUserInformation" (successResponse []) $ do
+          (Portal.getUserInformation (client handle) def >>= Portal.await) `shouldThrow` dbusClientException

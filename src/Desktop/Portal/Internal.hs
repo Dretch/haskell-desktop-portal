@@ -5,9 +5,10 @@ module Desktop.Portal.Internal
     clientName,
     Request,
     sendRequest,
-    sendRequestSansResponse,
     await,
     cancel,
+    callMethod,
+    callMethod_,
     SignalHandler,
     handleSignal,
     cancelSignalHandler,
@@ -175,8 +176,24 @@ sendRequest client interface memberName parameters options parseResponse = do
     _ ->
       throwIO (DBus.clientError ("Request reply in unexpected format: " <> show reply))
 
--- | Send a request to the desktop portal D-Bus object, but don't wait for a response.
-sendRequestSansResponse ::
+-- | Call a method on the desktop portal D-Bus object, and read the response directly
+-- rather than asynchronously via a request object.
+callMethod ::
+  Client ->
+  -- | Which portal interface to invoke.
+  InterfaceName ->
+  -- | Which method to invoke on that interface.
+  MemberName ->
+  -- | Arguments to pass to the method.
+  [Variant] ->
+  -- | The response from the method call.
+  IO [Variant]
+callMethod client interface memberName methodCallBody = do
+  let methodCall = (portalMethodCall interface memberName) {DBus.methodCallBody}
+  DBus.methodReturnBody <$> DBus.call_ client.dbusClient methodCall
+
+-- | Call a method on the desktop portal D-Bus object, but ignore the response.
+callMethod_ ::
   Client ->
   -- | Which portal interface to invoke.
   InterfaceName ->
@@ -185,9 +202,9 @@ sendRequestSansResponse ::
   -- | Arguments to pass to the method.
   [Variant] ->
   IO ()
-sendRequestSansResponse client interface memberName methodCallBody = do
+callMethod_ client interface memberName methodCallBody = do
   let methodCall = (portalMethodCall interface memberName) {DBus.methodCallBody}
-  void (DBus.call_ client.dbusClient methodCall)
+  void (DBus.call client.dbusClient methodCall)
 
 handleSignal :: Client -> InterfaceName -> MemberName -> ([Variant] -> IO ()) -> IO SignalHandler
 handleSignal client interface memberName handler = do
