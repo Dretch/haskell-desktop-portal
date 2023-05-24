@@ -15,7 +15,7 @@ import Data.Map qualified as Map
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
 import Desktop.Portal.Internal (Client, Request, sendRequest)
-import Desktop.Portal.Util (optionalFromVariant, toVariantPair)
+import Desktop.Portal.Util (decodeFileUri, mapJust, optionalFromVariant, toVariantPair)
 
 data GetUserInformationOptions = GetUserInformationOptions
   { window :: Maybe Text,
@@ -33,7 +33,7 @@ instance Default GetUserInformationOptions where
 data GetUserInformationResults = GetUserInformationResults
   { id :: Text,
     name :: Text,
-    image :: Maybe Text
+    image :: Maybe FilePath
   }
   deriving (Eq, Show)
 
@@ -54,7 +54,7 @@ getUserInformation client options =
       resMap
         | Just id' <- DBus.fromVariant =<< Map.lookup "id" resMap,
           Just name <- DBus.fromVariant =<< Map.lookup "name" resMap,
-          Just image <- optionalFromVariant "image" resMap ->
+          Just image <- mapJust decodeFileUri =<< optionalFromVariant "image" resMap -> do
             pure GetUserInformationResults {id = id', name, image}
       resMap ->
         throwIO . DBus.clientError $ "getUserInformation: could not parse response: " <> show resMap

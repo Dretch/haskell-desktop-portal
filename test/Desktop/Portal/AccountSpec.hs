@@ -36,11 +36,11 @@ spec = do
               successResponse
                 [ ("id", toVariantText "_id"),
                   ("name", toVariantText "_name"),
-                  ("image", toVariantText "_img")
+                  ("image", toVariantText "file:///some/path")
                 ]
         withRequestResponse handle accountInterface "GetUserInformation" responseBody $ do
           (Portal.getUserInformation (client handle) def >>= Portal.await)
-            `shouldReturn` Just (GetUserInformationResults "_id" "_name" (Just "_img"))
+            `shouldReturn` Just (GetUserInformationResults "_id" "_name" (Just "/some/path"))
 
       it "should decode response without image" $ \handle -> do
         let responseBody =

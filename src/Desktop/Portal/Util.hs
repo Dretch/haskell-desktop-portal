@@ -1,9 +1,13 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module Desktop.Portal.Util
   ( optionalFromVariant,
     mapJust,
     toVariantPair,
     toVariantPair',
     encodeNullTerminatedUtf8,
+    decodeFileUri,
+    decodeFileUris,
   )
 where
 
@@ -13,8 +17,10 @@ import Data.Binary.Builder qualified as Binary
 import Data.ByteString.Lazy (ByteString)
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Text (Text)
+import Data.Text (Text, unpack)
 import Data.Text.Encoding qualified as Encoding
+import Text.URI (Authority (..), URI (..))
+import Text.URI qualified as URI
 
 -- | Returns @Just Nothing@ if the field does not exist, @Just (Just x)@ if it does exist and
 -- can be turned into the expected type, or @Nothing@ if the field exists with the wrong type.
@@ -38,3 +44,30 @@ toVariantPair' f key = \case
 encodeNullTerminatedUtf8 :: Text -> ByteString
 encodeNullTerminatedUtf8 txt =
   Binary.toLazyByteString (Encoding.encodeUtf8Builder txt <> Binary.singleton 0)
+
+decodeFileUri :: Text -> Maybe FilePath
+decodeFileUri uri =
+  case URI.mkURI uri of
+    Just
+      URI
+        { uriScheme = Just (URI.unRText -> "file"),
+          uriAuthority = (validAuthority -> True),
+          uriPath = Just (_trailingSlash, parts),
+          uriQuery = [],
+          uriFragment = Nothing
+        } -> Just . unpack $ foldMap (("/" <>) . URI.unRText) parts
+    _ ->
+      Nothing
+  where
+    validAuthority = \case
+      Left True -> True
+      Right
+        Authority
+          { authUserInfo = Nothing,
+            authHost = (URI.unRText -> ""),
+            authPort = Nothing
+          } -> True
+      _ -> False
+
+decodeFileUris :: [Text] -> Maybe [FilePath]
+decodeFileUris = traverse decodeFileUri

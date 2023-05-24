@@ -26,10 +26,10 @@ import Data.Default.Class (Default (def))
 import Data.Map (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes, fromMaybe)
-import Data.Text (Text)
+import Data.Text (Text, pack)
 import Data.Word (Word32)
 import Desktop.Portal.Internal (Client, Request, sendRequest)
-import Desktop.Portal.Util (encodeNullTerminatedUtf8, mapJust, optionalFromVariant, toVariantPair, toVariantPair')
+import Desktop.Portal.Util (decodeFileUris, encodeNullTerminatedUtf8, mapJust, optionalFromVariant, toVariantPair, toVariantPair')
 
 data Filter = Filter
   { name :: Text,
@@ -90,7 +90,7 @@ instance Default OpenFileOptions where
       }
 
 data OpenFileResults = OpenFileResults
-  { uris :: [Text],
+  { uris :: [FilePath],
     choices :: Maybe [ChoiceComboSelection],
     currentFilter :: Maybe Filter
   }
@@ -105,8 +105,8 @@ data SaveFileOptions = SaveFileOptions
     currentFilter :: Maybe Filter,
     choices :: Maybe [ChoiceCombo],
     currentName :: Maybe Text,
-    currentFolder :: Maybe Text,
-    currentFile :: Maybe Text
+    currentFolder :: Maybe FilePath,
+    currentFile :: Maybe FilePath
   }
   deriving (Eq, Show)
 
@@ -126,7 +126,7 @@ instance Default SaveFileOptions where
       }
 
 data SaveFileResults = SaveFileResults
-  { uris :: [Text],
+  { uris :: [FilePath],
     choices :: Maybe [ChoiceComboSelection],
     currentFilter :: Maybe Filter
   }
@@ -168,8 +168,8 @@ saveFile client options =
           toVariantPair' encodeFilter "current_filter" options.currentFilter,
           toVariantPair' (fmap encodeCombo) "choices" options.choices,
           toVariantPair "current_name" options.currentName,
-          toVariantPair "current_folder" (encodeNullTerminatedUtf8 <$> options.currentFolder),
-          toVariantPair "current_file" (encodeNullTerminatedUtf8 <$> options.currentFile)
+          toVariantPair "current_folder" (encodeNullTerminatedUtf8 . pack <$> options.currentFolder),
+          toVariantPair "current_file" (encodeNullTerminatedUtf8 . pack <$> options.currentFile)
         ]
 
     parseResponse resMap = do
@@ -179,7 +179,7 @@ saveFile client options =
 parseOpenFileResponse :: Map Text Variant -> IO OpenFileResults
 parseOpenFileResponse = \case
   resMap
-    | Just uris <- DBus.fromVariant =<< Map.lookup "uris" resMap,
+    | Just uris <- decodeFileUris =<< DBus.fromVariant =<< Map.lookup "uris" resMap,
       Just choicesRaw <- optionalFromVariant "choices" resMap,
       choices <- fmap decodeChoiceComboSelection <$> choicesRaw,
       Just currentFilterRaw <- optionalFromVariant "current_filter" resMap,

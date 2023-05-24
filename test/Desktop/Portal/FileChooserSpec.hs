@@ -103,7 +103,7 @@ spec = do
         withRequestResponse handle fileChooserInterface "OpenFile" responseBody $ do
           (Portal.openFile (client handle) def >>= Portal.await)
             `shouldReturn` Just
-              (OpenFileResults {uris = ["file:///a/b/c"], choices = Nothing, currentFilter = Nothing})
+              (OpenFileResults {uris = ["/a/b/c"], choices = Nothing, currentFilter = Nothing})
 
       it "should decode response with all Justs" $ \handle -> do
         let responseBody =
@@ -116,7 +116,7 @@ spec = do
           (Portal.openFile (client handle) def >>= Portal.await)
             `shouldReturn` Just
               ( OpenFileResults
-                  { uris = ["file:///a/b/c"],
+                  { uris = ["/a/b/c"],
                     choices = Just [ChoiceComboSelection {comboId = "_comboId", optionId = "_optionId"}],
                     currentFilter = Just Filter {name = "_filterId", fileTypes = [GlobFilter "*.md"]}
                   }
@@ -214,7 +214,7 @@ spec = do
         withRequestResponse handle fileChooserInterface "SaveFile" responseBody $ do
           (Portal.saveFile (client handle) def >>= Portal.await)
             `shouldReturn` Just
-              (SaveFileResults {uris = ["file:///a/b/c"], choices = Nothing, currentFilter = Nothing})
+              (SaveFileResults {uris = ["/a/b/c"], choices = Nothing, currentFilter = Nothing})
 
       it "should decode response with all Justs" $ \handle -> do
         let responseBody =
@@ -227,7 +227,7 @@ spec = do
           (Portal.saveFile (client handle) def >>= Portal.await)
             `shouldReturn` Just
               ( SaveFileResults
-                  { uris = ["file:///a/b/c"],
+                  { uris = ["/a/b/c"],
                     choices = Just [ChoiceComboSelection {comboId = "_comboId", optionId = "_optionId"}],
                     currentFilter = Just Filter {name = "_filterId", fileTypes = [GlobFilter "*.md"]}
                   }

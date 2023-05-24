@@ -25,6 +25,7 @@ See the generated docs on [Hackage](https://hackage.haskell.org/package/desktop-
 - Functions should take records called `...Options` and return records called `...Results`.
 - `...Options` records should have a `Default` instance where all fields have a reasonable empty value.
 - Record fields should not have unique prefixes.
+- API methods that return URIs that are known to always be `file:` URIs should be wrapped with functions returning [`Prelude.FilePath`](https://hackage.haskell.org/package/base-4.18.0.0/docs/Prelude.html#t:FilePath) (at some point this can be replaced with [`System.OsPath`](https://hackage.haskell.org/package/filepath-1.4.100.3/docs/System-OsPath.html#t:OsPath)). If they are not known to be file URIs, then [`Text.URI.URI`](https://hackage.haskell.org/package/modern-uri-0.3.6.0/docs/Text-URI.html#t:URI) should be returned.
 
 ### To format the source code
 ```bash

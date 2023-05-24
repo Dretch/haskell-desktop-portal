@@ -1,3 +1,7 @@
+## 0.2.0.0
+### Changed
+- Functions now return FilePath instead of Text, where the value is always a file URI.
+
 ## 0.1.1.0
 ### Added
 - Add Settings portal support.
