@@ -1,5 +1,5 @@
 module Desktop.Portal.OpenURI
-  ( --- * Open URI
+  ( -- * Open URI
     OpenURIOptions (..),
     openURIOptions,
     openURI,
