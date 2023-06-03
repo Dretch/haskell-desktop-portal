@@ -1,3 +1,7 @@
+## 0.2.1.0
+### Added
+- Add OpenURI portal support.
+
 ## 0.2.0.0
 ### Changed
 - Functions now return FilePath instead of Text, where the value is always a file URI.
