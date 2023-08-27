@@ -25,6 +25,7 @@ import DBus.Client (ClientError, MatchRule (..))
 import DBus.Client qualified as DBus
 import DBus.Internal.Message (Signal (..))
 import DBus.Internal.Types (Variant)
+import DBus.Socket qualified as DBus
 import Data.Map (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text, pack, unpack)
@@ -78,7 +79,10 @@ connect = do
   case env of
     Nothing -> throwIO (DBus.clientError "connect: session address not found.")
     Just addr -> do
-      (dbusClient, clientName) <- DBus.connectWithName DBus.defaultClientOptions addr
+      let socketAuthenticator = DBus.authenticatorWithUnixFds
+          clientSocketOptions = DBus.defaultSocketOptions {DBus.socketAuthenticator}
+          clientOptions = DBus.defaultClientOptions {DBus.clientSocketOptions}
+      (dbusClient, clientName) <- DBus.connectWithName clientOptions addr
       pure Client {dbusClient, clientName}
 
 disconnect :: Client -> IO ()
@@ -192,19 +196,29 @@ callMethod client interface memberName methodCallBody = do
   let methodCall = (portalMethodCall interface memberName) {DBus.methodCallBody}
   DBus.methodReturnBody <$> DBus.call_ client.dbusClient methodCall
 
--- | Call a method on the desktop portal D-Bus object, but ignore the response.
+-- | Call a method on the specified D-Bus object, and read the response directly
+-- rather than asynchronously via a request object.
 callMethod_ ::
   Client ->
-  -- | Which portal interface to invoke.
+  -- | The client that has the object.
+  BusName ->
+  -- | Which object to call.
+  ObjectPath ->
+  -- | Which interface to invoke.
   InterfaceName ->
   -- | Which method to invoke on that interface.
   MemberName ->
   -- | Arguments to pass to the method.
   [Variant] ->
-  IO ()
-callMethod_ client interface memberName methodCallBody = do
-  let methodCall = (portalMethodCall interface memberName) {DBus.methodCallBody}
-  void (DBus.call client.dbusClient methodCall)
+  -- | The response from the method call.
+  IO [Variant]
+callMethod_ client busName object interface memberName methodCallBody = do
+  let methodCall =
+        (DBus.methodCall object interface memberName)
+          { DBus.methodCallDestination = Just busName,
+            DBus.methodCallBody
+          }
+  DBus.methodReturnBody <$> DBus.call_ client.dbusClient methodCall
 
 handleSignal :: Client -> InterfaceName -> MemberName -> ([Variant] -> IO ()) -> IO SignalHandler
 handleSignal client interface memberName handler = do
@@ -240,5 +254,8 @@ requestHandle clientName = do
 portalMethodCall :: InterfaceName -> MemberName -> MethodCall
 portalMethodCall interface memberName =
   (DBus.methodCall "/org/freedesktop/portal/desktop" interface memberName)
-    { DBus.methodCallDestination = Just "org.freedesktop.portal.Desktop"
+    { DBus.methodCallDestination = Just portalBusName
     }
+
+portalBusName :: BusName
+portalBusName = "org.freedesktop.portal.Desktop"

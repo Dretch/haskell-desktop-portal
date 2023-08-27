@@ -5,23 +5,33 @@ module Desktop.Portal.TestUtil
     TestHandle,
     client,
     withTestBus,
+    withTestBus_,
     withMethodResponse,
+    withMethodResponse_,
     withRequestResponse,
     savingMethodArguments,
+    savingMethodArguments_,
     savingRequestArguments,
     sendSignal,
     dbusClientException,
+    withTempFilePath,
+    withTempFilePaths,
+    withTempFd,
+    withTempFds,
+    withTempDirectoryFd,
+    withTempDirectoryFilePath,
   )
 where
 
 import Control.Concurrent (newEmptyMVar, tryPutMVar, tryReadMVar)
-import Control.Exception (finally)
+import Control.Exception (bracket, finally, throwIO)
 import Control.Monad (unless, void)
 import Control.Monad.IO.Class (MonadIO (..))
-import DBus (BusName, InterfaceName, IsVariant (fromVariant), MemberName, MethodCall (..), ObjectPath, Variant, formatBusName, objectPath_, toVariant)
-import DBus.Client (Client, ClientError, Interface (..), Reply (..), RequestNameReply (..), connectSession, defaultInterface, disconnect, emit, export, makeMethod, nameDoNotQueue, requestName, unexport)
+import DBus (BusName, InterfaceName, IsVariant (fromVariant), MemberName, MethodCall (..), ObjectPath, Variant, formatBusName, getSessionAddress, objectPath_, toVariant)
+import DBus.Client (Client, ClientError, ClientOptions (..), Interface (..), Reply (..), RequestNameReply (..), clientError, connectWith, defaultClientOptions, defaultInterface, disconnect, emit, export, makeMethod, nameDoNotQueue, requestName, unexport)
 import DBus.Internal.Message (Signal (..))
 import DBus.Internal.Types (Atom (AtomText), Signature (..), Value (ValueMap), Variant (Variant))
+import DBus.Socket (SocketOptions (..), authenticatorWithUnixFds, defaultSocketOptions)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text (Text)
@@ -29,6 +39,8 @@ import Data.Word (Word32)
 import Desktop.Portal qualified as Portal
 import GHC.IO.Handle (hGetLine)
 import System.Environment (lookupEnv, setEnv)
+import System.IO.Temp (withSystemTempDirectory, withSystemTempFile)
+import System.Posix (Fd, OpenMode (..), closeFd, defaultFileFlags, handleToFd, openFd)
 import System.Process (StdStream (..), createProcess, proc, std_out, terminateProcess)
 import Test.Hspec.Expectations (Selector)
 
@@ -41,7 +53,10 @@ client :: TestHandle -> Portal.Client
 client c = c.clientClient
 
 withTestBus :: (TestHandle -> IO ()) -> IO ()
-withTestBus cmd = do
+withTestBus = withTestBus_ portalBusName
+
+withTestBus_ :: BusName -> (TestHandle -> IO ()) -> IO ()
+withTestBus_ busName cmd = do
   let dbusArgs =
         [ "--print-address",
           "--nopidfile",
@@ -55,11 +70,11 @@ withTestBus cmd = do
   flip finally (stopDbus oldSessionAddr ph) $ do
     addrLine <- hGetLine hOut
     setEnv sessionAddressEnv addrLine
-    serverClient <- connectSession
+    serverClient <- connectSessionWithFds
     flip finally (disconnect serverClient) $ do
       clientClient <- Portal.connect
       flip finally (Portal.disconnect clientClient) $ do
-        requestName serverClient portalBusName [nameDoNotQueue] >>= \case
+        requestName serverClient busName [nameDoNotQueue] >>= \case
           NamePrimaryOwner -> cmd TestHandle {serverClient, clientClient}
           reply -> fail ("Can't get portal name: " <> show reply)
   where
@@ -68,16 +83,20 @@ withTestBus cmd = do
       maybe (pure ()) (setEnv sessionAddressEnv) oldSessionAddr
 
 withMethodResponse :: TestHandle -> InterfaceName -> MemberName -> [Variant] -> IO () -> IO ()
-withMethodResponse handle interfaceName methodName methodResponse cmd = do
+withMethodResponse handle =
+  withMethodResponse_ handle portalObjectPath
+
+withMethodResponse_ :: TestHandle -> ObjectPath -> InterfaceName -> MemberName -> [Variant] -> IO () -> IO ()
+withMethodResponse_ handle objectPath interfaceName methodName methodResponse cmd = do
   export
     handle.serverClient
-    portalObjectPath
+    objectPath
     defaultInterface
       { interfaceName,
         interfaceMethods = [makeMethod methodName (Signature []) (Signature []) (const . pure . ReplyReturn $ methodResponse)]
       }
   cmd
-  unexport handle.serverClient portalObjectPath
+  unexport handle.serverClient objectPath
 
 withRequestResponse :: TestHandle -> InterfaceName -> MemberName -> [Variant] -> IO () -> IO ()
 withRequestResponse handle interfaceName methodName methodResponse cmd = do
@@ -96,17 +115,21 @@ withRequestResponse handle interfaceName methodName methodResponse cmd = do
       pure (ReplyReturn [toVariant (methodRequestHandle methodCall)])
 
 savingMethodArguments :: TestHandle -> InterfaceName -> MemberName -> [Variant] -> IO () -> IO [Variant]
-savingMethodArguments handle interfaceName methodName response cmd = do
+savingMethodArguments handle =
+  savingMethodArguments_ handle portalObjectPath
+
+savingMethodArguments_ :: TestHandle -> ObjectPath -> InterfaceName -> MemberName -> [Variant] -> IO () -> IO [Variant]
+savingMethodArguments_ handle objectPath interfaceName methodName response cmd = do
   argsVar <- newEmptyMVar
   export
     handle.serverClient
-    portalObjectPath
+    objectPath
     defaultInterface
       { interfaceName,
         interfaceMethods = [makeMethod methodName (Signature []) (Signature []) (handleMethodCall argsVar)]
       }
   cmd
-  unexport handle.serverClient portalObjectPath
+  unexport handle.serverClient objectPath
   tryReadMVar argsVar >>= \case
     Just args -> pure args
     Nothing -> fail "No method was called during the callback!"
@@ -214,3 +237,46 @@ toVariantText = toVariant
 
 dbusClientException :: Selector ClientError
 dbusClientException = const True
+
+connectSessionWithFds :: IO Client
+connectSessionWithFds = do
+  env <- getSessionAddress
+  case env of
+    Nothing -> throwIO (clientError "connectSessionWithFds: session address not found.")
+    Just addr -> do
+      let socketAuthenticator = authenticatorWithUnixFds
+          clientSocketOptions = defaultSocketOptions {socketAuthenticator}
+          clientOptions = defaultClientOptions {clientSocketOptions}
+      connectWith clientOptions addr
+
+withTempFilePath :: (FilePath -> IO ()) -> IO ()
+withTempFilePath cmd =
+  withSystemTempFile "haskell-desktop-portal" $ \path _handle -> cmd path
+
+withTempFilePaths :: Int -> ([FilePath] -> IO ()) -> IO ()
+withTempFilePaths n cmd = go [] n
+  where
+    go acc = \case
+      i | i <= 0 -> cmd acc
+      i -> withTempFilePath (\path -> go (path : acc) (i - 1))
+
+withTempFd :: (Fd -> IO ()) -> IO ()
+withTempFd cmd =
+  withSystemTempFile "haskell-desktop-portal" $ \_path handle -> do
+    bracket (handleToFd handle) closeFd cmd
+
+withTempFds :: Int -> ([Fd] -> IO ()) -> IO ()
+withTempFds n cmd = go [] n
+  where
+    go acc = \case
+      i | i <= 0 -> cmd acc
+      i -> withTempFd (\fd -> go (fd : acc) (i - 1))
+
+withTempDirectoryFd :: (Fd -> IO ()) -> IO ()
+withTempDirectoryFd cmd =
+  withSystemTempDirectory "haskell-desktop-portal" $ \path -> do
+    bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd cmd
+
+withTempDirectoryFilePath :: (FilePath -> IO ()) -> IO ()
+withTempDirectoryFilePath =
+  withSystemTempDirectory "haskell-desktop-portal"

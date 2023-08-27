@@ -1,11 +1,10 @@
-{-# LANGUAGE ViewPatterns #-}
-
 module Desktop.Portal.Util
   ( optionalFromVariant,
     mapJust,
     toVariantPair,
     toVariantPair',
     encodeNullTerminatedUtf8,
+    decodeNullTerminatedUtf8,
     decodeFileUri,
     decodeFileUris,
   )
@@ -15,6 +14,7 @@ import DBus (IsVariant, Variant)
 import DBus qualified
 import Data.Binary.Builder qualified as Binary
 import Data.ByteString.Lazy (ByteString)
+import Data.ByteString.Lazy qualified as Bytes
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text (Text, unpack)
@@ -44,6 +44,12 @@ toVariantPair' f key = \case
 encodeNullTerminatedUtf8 :: Text -> ByteString
 encodeNullTerminatedUtf8 txt =
   Binary.toLazyByteString (Encoding.encodeUtf8Builder txt <> Binary.singleton 0)
+
+decodeNullTerminatedUtf8 :: ByteString -> Maybe Text
+decodeNullTerminatedUtf8 bytes =
+  case Encoding.decodeUtf8' (Bytes.toStrict (Bytes.dropWhileEnd (== 0) bytes)) of
+    Left _err -> Nothing
+    Right t -> Just t
 
 decodeFileUri :: Text -> Maybe FilePath
 decodeFileUri uri =

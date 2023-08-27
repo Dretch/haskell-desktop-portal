@@ -18,6 +18,7 @@ module Desktop.Portal.Notification
 where
 
 import Control.Exception (throwIO)
+import Control.Monad (void)
 import DBus (InterfaceName, Variant)
 import DBus qualified
 import DBus.Client qualified as DBus
@@ -26,7 +27,7 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (catMaybes, listToMaybe)
 import Data.Text (Text)
-import Desktop.Portal.Internal (Client, SignalHandler, callMethod_, handleSignal)
+import Desktop.Portal.Internal (Client, SignalHandler, callMethod, handleSignal)
 import Desktop.Portal.Util (toVariantPair, toVariantPair')
 import Prelude hiding (id)
 
@@ -86,7 +87,7 @@ notificationInterface = "org.freedesktop.portal.Notification"
 
 addNotification :: Client -> AddNotificationOptions -> IO ()
 addNotification client options =
-  callMethod_ client notificationInterface "AddNotification" [id, optionsArg]
+  void $ callMethod client notificationInterface "AddNotification" [id, optionsArg]
   where
     id = DBus.toVariant options.id
     optionsArg =
@@ -102,7 +103,7 @@ addNotification client options =
 
 removeNotification :: Client -> RemoveNotificationOptions -> IO ()
 removeNotification client options =
-  callMethod_ client notificationInterface "RemoveNotification" [id]
+  void $ callMethod client notificationInterface "RemoveNotification" [id]
   where
     id = DBus.toVariant options.id
 
