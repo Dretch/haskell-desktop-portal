@@ -82,8 +82,8 @@ connect = do
       let socketAuthenticator = DBus.authenticatorWithUnixFds
           clientSocketOptions = DBus.defaultSocketOptions {DBus.socketAuthenticator}
           clientOptions = DBus.defaultClientOptions {DBus.clientSocketOptions}
-      (dbusClient, clientName) <- DBus.connectWithName clientOptions addr
-      pure Client {dbusClient, clientName}
+      (dbusClient, cName) <- DBus.connectWithName clientOptions addr
+      pure Client {dbusClient, clientName = cName}
 
 disconnect :: Client -> IO ()
 disconnect client = do
@@ -244,9 +244,9 @@ requestToken = do
   pure ("haskell_desktop_portal_" <> pack (show rnd))
 
 requestHandle :: BusName -> IO (ObjectPath, Text)
-requestHandle clientName = do
+requestHandle cName = do
   token <- requestToken
-  pure (DBus.objectPath_ ("/org/freedesktop/portal/desktop/request/" <> escapeClientName clientName <> "/" <> unpack token), token)
+  pure (DBus.objectPath_ ("/org/freedesktop/portal/desktop/request/" <> escapeClientName cName <> "/" <> unpack token), token)
   where
     escapeClientName =
       map (\case '.' -> '_'; c -> c) . drop 1 . DBus.formatBusName
