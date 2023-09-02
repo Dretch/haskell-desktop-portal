@@ -12,12 +12,15 @@ module Desktop.Portal.Internal
     SignalHandler,
     handleSignal,
     cancelSignalHandler,
+    FileSpec (..),
+    withFd,
+    withFds,
   )
 where
 
 import Control.Concurrent (MVar, putMVar, readMVar, tryPutMVar)
 import Control.Concurrent.MVar (newEmptyMVar)
-import Control.Exception (SomeException, catch, throwIO)
+import Control.Exception (SomeException, bracket, catch, throwIO)
 import Control.Monad (void, when)
 import DBus (BusName, InterfaceName, MemberName, MethodCall, ObjectPath)
 import DBus qualified
@@ -30,6 +33,7 @@ import Data.Map (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text, pack, unpack)
 import Data.Word (Word32, Word64)
+import System.Posix (Fd, OpenMode (..), closeFd, defaultFileFlags, openFd)
 import System.Random.Stateful qualified as R
 
 -- | A handle for an active desktop portal session. Can send requests and listen for signals.
@@ -259,3 +263,28 @@ portalMethodCall interface memberName =
 
 portalBusName :: BusName
 portalBusName = "org.freedesktop.portal.Desktop"
+
+-- | Specifies a file, either with a file descriptor or a path (which will be
+-- resolved to a file descriptor before passing it to the portals API, since
+-- the API typically requires file descriptors).
+data FileSpec
+  = FileSpecPath FilePath
+  | FileSpecFd Fd
+  deriving (Eq, Show)
+
+withFd :: FileSpec -> (Fd -> IO a) -> IO a
+withFd = \case
+  FileSpecFd fd ->
+    ($ fd)
+  FileSpecPath path ->
+    bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd
+
+withFds :: forall a. [FileSpec] -> ([Fd] -> IO a) -> IO a
+withFds files cmd = withFdsRec [] files
+  where
+    withFdsRec fds = \case
+      [] ->
+        cmd (reverse fds)
+      file : files' ->
+        withFd file $ \fd -> do
+          withFdsRec (fd : fds) files'

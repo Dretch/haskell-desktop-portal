@@ -1,3 +1,7 @@
+## 0.3.0.0
+### Fixed
+- The OpenURI portal now supports OpenFile and OpenDirectory correctly. This uses the file descriptor support added with the Documents portal support.
+
 ## 0.2.2.0
 ### Added
 - Add Documents portal support.

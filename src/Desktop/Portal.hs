@@ -18,6 +18,9 @@ module Desktop.Portal
     Internal.SignalHandler,
     Internal.cancelSignalHandler,
 
+    -- * Common Types
+    Internal.FileSpec (..),
+
     -- * Portal Interfaces
     module Desktop.Portal.Account,
     module Desktop.Portal.Directories,

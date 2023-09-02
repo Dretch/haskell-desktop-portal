@@ -20,8 +20,7 @@ import DBus (InterfaceName, IsVariant (toVariant))
 import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
-import Data.Word (Word32)
-import Desktop.Portal.Internal (Client, Request, sendRequest)
+import Desktop.Portal.Internal (Client, FileSpec, Request, sendRequest, withFd)
 import Desktop.Portal.Util (toVariantPair)
 import Text.URI (URI)
 import Text.URI qualified as URI
@@ -36,7 +35,7 @@ data OpenURIOptions = OpenURIOptions
   deriving (Eq, Show)
 
 data OpenFileOptions = OpenFileOptions
-  { fd :: Word32,
+  { fileSpec :: FileSpec,
     parentWindow :: Maybe Text,
     writable :: Maybe Bool,
     ask :: Maybe Bool,
@@ -45,7 +44,7 @@ data OpenFileOptions = OpenFileOptions
   deriving (Eq, Show)
 
 data OpenDirectoryOptions = OpenDirectoryOptions
-  { fd :: Word32,
+  { fileSpec :: FileSpec,
     parentWindow :: Maybe Text,
     activationToken :: Maybe Text
   }
@@ -65,12 +64,12 @@ openURIOptions uri =
     }
 
 openFileOptions ::
-  -- | The file descriptor to open.
-  Word32 ->
+  -- | The file to open.
+  FileSpec ->
   OpenFileOptions
-openFileOptions fd =
+openFileOptions fileSpec =
   OpenFileOptions
-    { fd,
+    { fileSpec,
       parentWindow = Nothing,
       writable = Nothing,
       ask = Nothing,
@@ -78,12 +77,12 @@ openFileOptions fd =
     }
 
 openDirectoryOptions ::
-  -- | The file descriptor to open.
-  Word32 ->
+  -- | The directory to open.
+  FileSpec ->
   OpenDirectoryOptions
-openDirectoryOptions fd =
+openDirectoryOptions fileSpec =
   OpenDirectoryOptions
-    { fd,
+    { fileSpec,
       parentWindow = Nothing,
       activationToken = Nothing
     }
@@ -106,9 +105,10 @@ openURI client options =
 
 openFile :: Client -> OpenFileOptions -> IO (Request ())
 openFile client options =
-  sendRequest client openURIInterface "OpenFile" args optionsArg parseUnitResponse
+  withFd options.fileSpec $ \fd ->
+    sendRequest client openURIInterface "OpenFile" (args fd) optionsArg parseUnitResponse
   where
-    args = [DBus.toVariant parentWindow, DBus.toVariant options.fd]
+    args fd = [DBus.toVariant parentWindow, DBus.toVariant fd]
     parentWindow = fromMaybe "" options.parentWindow
     optionsArg =
       Map.fromList . catMaybes $
@@ -119,9 +119,10 @@ openFile client options =
 
 openDirectory :: Client -> OpenDirectoryOptions -> IO (Request ())
 openDirectory client options =
-  sendRequest client openURIInterface "OpenDirectory" args optionsArg parseUnitResponse
+  withFd options.fileSpec $ \fd ->
+    sendRequest client openURIInterface "OpenDirectory" (args fd) optionsArg parseUnitResponse
   where
-    args = [DBus.toVariant parentWindow, DBus.toVariant options.fd]
+    args fd = [DBus.toVariant parentWindow, DBus.toVariant fd]
     parentWindow = fromMaybe "" options.parentWindow
     optionsArg =
       Map.fromList . catMaybes $

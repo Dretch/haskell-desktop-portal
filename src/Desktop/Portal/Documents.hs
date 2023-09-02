@@ -1,6 +1,5 @@
 module Desktop.Portal.Documents
   ( -- * Common Types
-    FileIdentifier (..),
     ApplicationId (..),
     DocumentId (..),
     AddFlag (..),
@@ -19,7 +18,7 @@ module Desktop.Portal.Documents
   )
 where
 
-import Control.Exception (bracket, throwIO)
+import Control.Exception (throwIO)
 import Control.Monad (void)
 import DBus (BusName, InterfaceName, MemberName, ObjectPath, Variant)
 import DBus qualified
@@ -30,17 +29,8 @@ import Data.Map qualified as Map
 import Data.String (IsString)
 import Data.Text (Text, unpack)
 import Data.Word (Word32)
-import Desktop.Portal.Internal (Client, callMethod_)
+import Desktop.Portal.Internal (Client, FileSpec, callMethod_, withFd, withFds)
 import Desktop.Portal.Util (decodeNullTerminatedUtf8, encodeNullTerminatedUtf8)
-import System.Posix (Fd)
-import System.Posix.IO (OpenMode (..), closeFd, defaultFileFlags, openFd)
-
--- | Specifies a file, either with a file descriptor or a path (which will be resolved to a
--- file descriptor before passing it to the portals API, since the API requires file descriptors).
-data FileIdentifier
-  = DocumentFilePath FilePath
-  | DocumentFd Fd
-  deriving (Eq, Show)
 
 newtype ApplicationId = ApplicationId Text
   deriving newtype (Eq, Ord, Show, IsString)
@@ -86,7 +76,7 @@ getMountPoint client = do
 add ::
   Client ->
   -- | The file to add to the documents store.
-  FileIdentifier ->
+  FileSpec ->
   -- | Whether to re-use the existing entry in the documents store, if this file is already there.
   Bool ->
   -- | Whether this file should stay in the documents store after this app shuts down.
@@ -111,7 +101,7 @@ add client file reuseExisting persistent =
 addFull ::
   Client ->
   -- | The files to add to the documents store.
-  [FileIdentifier] ->
+  [FileSpec] ->
   -- | The flags to apply to the files.
   [AddFlag] ->
   -- | The id of another application that will be granted access to the files.
@@ -139,7 +129,7 @@ addFull client files flags appId permissions =
 addNamed ::
   Client ->
   -- | The parent directory of the file to add to the documents store.
-  FileIdentifier ->
+  FileSpec ->
   -- | The basename of the file.
   Text ->
   -- | Whether to re-use the existing entry in the documents store, if this file is already there.
@@ -167,7 +157,7 @@ addNamed client parentDir basename reuseExisting persistent =
 addNamedFull ::
   Client ->
   -- | The parent directory of the file to add to the documents store.
-  FileIdentifier ->
+  FileSpec ->
   -- | The basename of the file.
   Text ->
   -- | The flags to apply to the file.
@@ -221,23 +211,6 @@ delete client (DocumentId docId) =
 callDocumentsMethod :: Client -> MemberName -> [Variant] -> IO [Variant]
 callDocumentsMethod client =
   callMethod_ client documentsBusName documentsObject documentsInterface
-
-withFd :: FileIdentifier -> (Fd -> IO a) -> IO a
-withFd = \case
-  DocumentFd fd ->
-    ($ fd)
-  DocumentFilePath path ->
-    bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd
-
-withFds :: forall a. [FileIdentifier] -> ([Fd] -> IO a) -> IO a
-withFds files cmd = withFdsRec [] files
-  where
-    withFdsRec fds = \case
-      [] ->
-        cmd (reverse fds)
-      file : files' ->
-        withFd file $ \fd -> do
-          withFdsRec (fd : fds) files'
 
 encodeAddFlags :: [AddFlag] -> Word32
 encodeAddFlags flags =

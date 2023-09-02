@@ -1,15 +1,15 @@
 module Desktop.Portal.DocumentsSpec (spec) where
 
 import Control.Monad (void)
-import DBus (BusName, InterfaceName, MemberName, ObjectPath, Type (..), Variant, fromVariant, toVariant, variantType)
+import DBus (BusName, InterfaceName, MemberName, ObjectPath, Variant, toVariant)
 import Data.ByteString (ByteString)
 import Data.Text (Text)
 import Data.Word (Word32)
-import Desktop.Portal.Documents (AddFlag (..), ExtraResults (..), FileIdentifier (..), GrantPermission (..))
+import Desktop.Portal (FileSpec (..))
+import Desktop.Portal.Documents (AddFlag (..), ExtraResults (..), GrantPermission (..))
 import Desktop.Portal.Documents qualified as Documents
 import Desktop.Portal.TestUtil
 import Desktop.Portal.TestUtil qualified as DBus
-import System.Posix (Fd)
 import Test.Hspec (Spec, around, describe, it, shouldBe, shouldReturn, shouldSatisfy)
 
 documentsInterface :: InterfaceName
@@ -41,7 +41,7 @@ spec = do
         let responseBody = [toVariantText "docId"]
         withTempFd $ \fd -> do
           body <- savingDocumentsMethodArguments handle "Add" responseBody $ do
-            void $ Documents.add (client handle) (DocumentFd fd) False True
+            void $ Documents.add (client handle) (FileSpecFd fd) False True
           head body `shouldSatisfy` isDifferentUnixFd fd
           tail body `shouldBe` [DBus.toVariant False, DBus.toVariant True]
 
@@ -49,7 +49,7 @@ spec = do
         let responseBody = [toVariantText "docId"]
         withTempFilePath $ \path -> do
           body <- savingDocumentsMethodArguments handle "Add" responseBody $ do
-            void $ Documents.add (client handle) (DocumentFilePath path) False True
+            void $ Documents.add (client handle) (FileSpecPath path) False True
           head body `shouldSatisfy` isUnixFd
           tail body `shouldBe` [DBus.toVariant False, DBus.toVariant True]
 
@@ -57,7 +57,7 @@ spec = do
         let responseBody = [toVariantText "docId"]
         withTempFd $ \fd -> do
           withDocumentsMethodResponse handle "Add" responseBody $ do
-            Documents.add (client handle) (DocumentFd fd) False False
+            Documents.add (client handle) (FileSpecFd fd) False False
               `shouldReturn` "docId"
 
     describe "addFull" $ do
@@ -71,7 +71,7 @@ spec = do
             void $
               Documents.addFull
                 (client handle)
-                (DocumentFd <$> fds)
+                (FileSpecFd <$> fds)
                 [AddReuseExisting, AddPersistent, AddAsNeededByApp, AddExportDirectory]
                 (Just "appId")
                 [GrantRead, GrantWrite, GrantGrantPermissions, GrantDelete]
@@ -90,7 +90,7 @@ spec = do
                 ]
           body <- savingDocumentsMethodArguments handle "AddFull" responseBody $ do
             void $
-              Documents.addFull (client handle) (DocumentFilePath <$> paths) [] Nothing []
+              Documents.addFull (client handle) (FileSpecPath <$> paths) [] Nothing []
           head body `shouldSatisfy` isUnixFds 8
           tail body
             `shouldBe` [DBus.toVariant (0 :: Word32), toVariantText "", DBus.toVariant ([] :: [Text])]
@@ -109,7 +109,7 @@ spec = do
         withTempDirectoryFd $ \fd -> do
           let responseBody = [toVariantText "docId"]
           body <- savingDocumentsMethodArguments handle "AddNamed" responseBody $ do
-            void $ Documents.addNamed (client handle) (DocumentFd fd) "filename" False True
+            void $ Documents.addNamed (client handle) (FileSpecFd fd) "filename" False True
           head body `shouldSatisfy` isDifferentUnixFd fd
           tail body
             `shouldBe` [ DBus.toVariant ("filename\0" :: ByteString),
@@ -121,7 +121,7 @@ spec = do
         withTempDirectoryFilePath $ \path -> do
           let responseBody = [toVariantText "docId"]
           body <- savingDocumentsMethodArguments handle "AddNamed" responseBody $ do
-            void $ Documents.addNamed (client handle) (DocumentFilePath path) "filename" False True
+            void $ Documents.addNamed (client handle) (FileSpecPath path) "filename" False True
           head body `shouldSatisfy` isUnixFd
           tail body
             `shouldBe` [ DBus.toVariant ("filename\0" :: ByteString),
@@ -133,7 +133,7 @@ spec = do
         withTempDirectoryFd $ \fd -> do
           let responseBody = [DBus.toVariantText "docId"]
           withDocumentsMethodResponse handle "AddNamed" responseBody $ do
-            Documents.addNamed (client handle) (DocumentFd fd) "filename\0" False False
+            Documents.addNamed (client handle) (FileSpecFd fd) "filename\0" False False
               `shouldReturn` "docId"
 
     describe "addNamedFull" $ do
@@ -147,7 +147,7 @@ spec = do
             void $
               Documents.addNamedFull
                 (client handle)
-                (DocumentFd fd)
+                (FileSpecFd fd)
                 "filename"
                 [AddReuseExisting, AddPersistent, AddAsNeededByApp, AddExportDirectory]
                 (Just "appId")
@@ -168,7 +168,7 @@ spec = do
                 ]
           body <- savingDocumentsMethodArguments handle "AddNamedFull" responseBody $ do
             void $
-              Documents.addNamedFull (client handle) (DocumentFilePath path) "filename" [] Nothing []
+              Documents.addNamedFull (client handle) (FileSpecPath path) "filename" [] Nothing []
           head body `shouldSatisfy` isUnixFd
           tail body
             `shouldBe` [ DBus.toVariant ("filename\0" :: ByteString),
@@ -184,7 +184,7 @@ spec = do
                   toVariantMap [("mountpoint", DBus.toVariant ("/a/b/c\0" :: ByteString))]
                 ]
           withDocumentsMethodResponse handle "AddNamedFull" responseBody $ do
-            Documents.addNamedFull (client handle) (DocumentFd fd) "filename\0" [] Nothing []
+            Documents.addNamedFull (client handle) (FileSpecFd fd) "filename\0" [] Nothing []
               `shouldReturn` ("docId", ExtraResults "/a/b/c")
 
     describe "grantPermissions" $ do
@@ -228,24 +228,3 @@ savingDocumentsMethodArguments handle =
 withDocumentsMethodResponse :: TestHandle -> MemberName -> [Variant] -> IO () -> IO ()
 withDocumentsMethodResponse handle =
   withMethodResponse_ handle documentsObject documentsInterface
-
--- We send a Fd to DBUS and check that the receiving test portal server end gets it,
--- but the Fd actually received will be a different value, since it gets duplicated
--- as it traverses the Unix sockets: test portal client -> DBUS -> test portal server
-isDifferentUnixFd :: Fd -> Variant -> Bool
-isDifferentUnixFd fd = \case
-  (fromVariant -> Just fd') -> fd' /= fd
-  _ -> False
-
-isDifferentUnixFds :: [Fd] -> Variant -> Bool
-isDifferentUnixFds fds = \case
-  (fromVariant -> Just fds') -> length fds' == length fds && fds' /= fds
-  _ -> False
-
-isUnixFd :: Variant -> Bool
-isUnixFd v = DBus.variantType v == TypeUnixFd
-
-isUnixFds :: Int -> Variant -> Bool
-isUnixFds n v
-  | Just (fds :: [Fd]) <- fromVariant v, length fds == n = True
-  | otherwise = False

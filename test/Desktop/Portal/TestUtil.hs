@@ -20,6 +20,11 @@ module Desktop.Portal.TestUtil
     withTempFds,
     withTempDirectoryFd,
     withTempDirectoryFilePath,
+    shouldSatisfyList,
+    isDifferentUnixFd,
+    isDifferentUnixFds,
+    isUnixFd,
+    isUnixFds,
   )
 where
 
@@ -27,7 +32,7 @@ import Control.Concurrent (newEmptyMVar, tryPutMVar, tryReadMVar)
 import Control.Exception (bracket, finally, throwIO)
 import Control.Monad (unless, void)
 import Control.Monad.IO.Class (MonadIO (..))
-import DBus (BusName, InterfaceName, IsVariant (fromVariant), MemberName, MethodCall (..), ObjectPath, Variant, formatBusName, getSessionAddress, objectPath_, toVariant)
+import DBus (BusName, InterfaceName, IsVariant (fromVariant), MemberName, MethodCall (..), ObjectPath, Type (..), Variant, formatBusName, getSessionAddress, objectPath_, toVariant, variantType)
 import DBus.Client (Client, ClientError, ClientOptions (..), Interface (..), Reply (..), RequestNameReply (..), clientError, connectWith, defaultClientOptions, defaultInterface, disconnect, emit, export, makeMethod, nameDoNotQueue, requestName, unexport)
 import DBus.Internal.Message (Signal (..))
 import DBus.Internal.Types (Atom (AtomText), Signature (..), Value (ValueMap), Variant (Variant))
@@ -42,7 +47,7 @@ import System.Environment (lookupEnv, setEnv)
 import System.IO.Temp (withSystemTempDirectory, withSystemTempFile)
 import System.Posix (Fd, OpenMode (..), closeFd, defaultFileFlags, handleToFd, openFd)
 import System.Process (StdStream (..), createProcess, proc, std_out, terminateProcess)
-import Test.Hspec.Expectations (Selector)
+import Test.Hspec.Expectations (Expectation, HasCallStack, Selector, shouldSatisfy)
 
 data TestHandle = TestHandle
   { serverClient :: Client,
@@ -280,3 +285,32 @@ withTempDirectoryFd cmd =
 withTempDirectoryFilePath :: (FilePath -> IO ()) -> IO ()
 withTempDirectoryFilePath =
   withSystemTempDirectory "haskell-desktop-portal"
+
+shouldSatisfyList :: (HasCallStack, Show a) => [a] -> [a -> Bool] -> Expectation
+shouldSatisfyList xs predicates = shouldSatisfy xs predicate
+  where
+    predicate xs' =
+      length predicates == length xs'
+        && and (zipWith ($) predicates xs')
+
+-- We send a Fd to DBUS and check that the receiving test portal server end gets it,
+-- but the Fd actually received will be a different value, since it gets duplicated
+-- as it traverses the Unix sockets: test portal client -> DBUS -> test portal server
+isDifferentUnixFd :: Fd -> Variant -> Bool
+isDifferentUnixFd fd = \case
+  (fromVariant -> Just fd') -> fd' /= fd
+  _ -> False
+
+isDifferentUnixFds :: [Fd] -> Variant -> Bool
+isDifferentUnixFds fds = \case
+  (fromVariant -> Just fds') ->
+    length fds' == length fds && and (zipWith (/=) fds' fds)
+  _ -> False
+
+isUnixFd :: Variant -> Bool
+isUnixFd v = variantType v == TypeUnixFd
+
+isUnixFds :: Int -> Variant -> Bool
+isUnixFds n v
+  | Just (fds :: [Fd]) <- fromVariant v, length fds == n = True
+  | otherwise = False

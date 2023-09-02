@@ -4,7 +4,7 @@ module Desktop.Portal.OpenURISpec (spec) where
 
 import Control.Monad (void)
 import DBus (InterfaceName, IsVariant (toVariant))
-import Data.Word (Word32)
+import Desktop.Portal (FileSpec (..))
 import Desktop.Portal qualified as Portal
 import Desktop.Portal.OpenURI (OpenDirectoryOptions (..), OpenFileOptions (..), OpenURIOptions (..))
 import Desktop.Portal.OpenURI qualified as OpenURI
@@ -55,70 +55,98 @@ spec = do
 
     describe "openFile" $ do
       it "should encode request with all Nothings" $ \handle -> do
-        body <- savingRequestArguments handle openURIInterface "OpenFile" $ do
-          void (OpenURI.openFile (client handle) (OpenURI.openFileOptions 42))
-        body
-          `shouldBe` [ toVariantText "",
-                       toVariant (42 :: Word32),
-                       toVariantMap []
-                     ]
+        withTempFd $ \fd -> do
+          body <- savingRequestArguments handle openURIInterface "OpenFile" $ do
+            void (OpenURI.openFile (client handle) (OpenURI.openFileOptions (FileSpecFd fd)))
+          body
+            `shouldSatisfyList` [ (== toVariantText ""),
+                                  isDifferentUnixFd fd,
+                                  (== toVariantMap [])
+                                ]
       it "should encode request with all Justs" $ \handle -> do
-        body <- savingRequestArguments handle openURIInterface "OpenFile" $ do
-          void
-            ( OpenURI.openFile
-                (client handle)
-                ( OpenFileOptions
-                    { fd = 43,
-                      parentWindow = Just "_window",
-                      writable = Just True,
-                      ask = Just True,
-                      activationToken = Just "_token"
-                    }
-                )
-            )
-        body
-          `shouldBe` [ toVariantText "_window",
-                       toVariant (43 :: Word32),
-                       toVariantMap
-                         [ ("writable", toVariant True),
-                           ("ask", toVariant True),
-                           ("activation_token", toVariantText "_token")
-                         ]
-                     ]
+        withTempFd $ \fd -> do
+          body <- savingRequestArguments handle openURIInterface "OpenFile" $ do
+            void
+              ( OpenURI.openFile
+                  (client handle)
+                  ( OpenFileOptions
+                      { fileSpec = FileSpecFd fd,
+                        parentWindow = Just "_window",
+                        writable = Just True,
+                        ask = Just True,
+                        activationToken = Just "_token"
+                      }
+                  )
+              )
+          body
+            `shouldSatisfyList` [ (== toVariantText "_window"),
+                                  isDifferentUnixFd fd,
+                                  ( ==
+                                      toVariantMap
+                                        [ ("writable", toVariant True),
+                                          ("ask", toVariant True),
+                                          ("activation_token", toVariantText "_token")
+                                        ]
+                                  )
+                                ]
+
+      it "should encode request with file path" $ \handle -> do
+        withTempFilePath $ \path -> do
+          body <- savingRequestArguments handle openURIInterface "OpenFile" $ do
+            void (OpenURI.openFile (client handle) (OpenURI.openFileOptions (FileSpecPath path)))
+          body
+            `shouldSatisfyList` [ (== toVariantText ""),
+                                  isUnixFd,
+                                  (== toVariantMap [])
+                                ]
 
       it "should decode response" $ \handle -> do
-        withRequestResponse handle openURIInterface "OpenFile" (successResponse []) $ do
-          (OpenURI.openFile (client handle) (OpenURI.openFileOptions 44) >>= Portal.await)
-            `shouldReturn` Just ()
+        withTempFd $ \fd -> do
+          withRequestResponse handle openURIInterface "OpenFile" (successResponse []) $ do
+            (OpenURI.openFile (client handle) (OpenURI.openFileOptions (FileSpecFd fd)) >>= Portal.await)
+              `shouldReturn` Just ()
 
     describe "openDirectory" $ do
       it "should encode request with all Nothings" $ \handle -> do
-        body <- savingRequestArguments handle openURIInterface "OpenDirectory" $ do
-          void (Portal.openDirectory (client handle) (Portal.openDirectoryOptions 42))
-        body
-          `shouldBe` [ toVariantText "",
-                       toVariant (42 :: Word32),
-                       toVariantMap []
-                     ]
+        withTempDirectoryFd $ \fd -> do
+          body <- savingRequestArguments handle openURIInterface "OpenDirectory" $ do
+            void (Portal.openDirectory (client handle) (Portal.openDirectoryOptions (FileSpecFd fd)))
+          body
+            `shouldSatisfyList` [ (== toVariantText ""),
+                                  isDifferentUnixFd fd,
+                                  (== toVariantMap [])
+                                ]
       it "should encode request with all Justs" $ \handle -> do
-        body <- savingRequestArguments handle openURIInterface "OpenDirectory" $ do
-          void
-            ( Portal.openDirectory
-                (client handle)
-                ( OpenDirectoryOptions
-                    { fd = 43,
-                      parentWindow = Just "_window",
-                      activationToken = Just "_token"
-                    }
-                )
-            )
-        body
-          `shouldBe` [ toVariantText "_window",
-                       toVariant (43 :: Word32),
-                       toVariantMap [("activation_token", toVariantText "_token")]
-                     ]
+        withTempDirectoryFd $ \fd -> do
+          body <- savingRequestArguments handle openURIInterface "OpenDirectory" $ do
+            void
+              ( Portal.openDirectory
+                  (client handle)
+                  ( OpenDirectoryOptions
+                      { fileSpec = FileSpecFd fd,
+                        parentWindow = Just "_window",
+                        activationToken = Just "_token"
+                      }
+                  )
+              )
+          body
+            `shouldSatisfyList` [ (== toVariantText "_window"),
+                                  isDifferentUnixFd fd,
+                                  (== toVariantMap [("activation_token", toVariantText "_token")])
+                                ]
+
+      it "should encode request with file path" $ \handle -> do
+        withTempFilePath $ \path -> do
+          body <- savingRequestArguments handle openURIInterface "OpenDirectory" $ do
+            void (OpenURI.openDirectory (client handle) (OpenURI.openDirectoryOptions (FileSpecPath path)))
+          body
+            `shouldSatisfyList` [ (== toVariantText ""),
+                                  isUnixFd,
+                                  (== toVariantMap [])
+                                ]
 
       it "should decode response" $ \handle -> do
-        withRequestResponse handle openURIInterface "OpenDirectory" (successResponse []) $ do
-          (Portal.openDirectory (client handle) (Portal.openDirectoryOptions 44) >>= Portal.await)
-            `shouldReturn` Just ()
+        withTempFd $ \fd -> do
+          withRequestResponse handle openURIInterface "OpenDirectory" (successResponse []) $ do
+            (Portal.openDirectory (client handle) (Portal.openDirectoryOptions (FileSpecFd fd)) >>= Portal.await)
+              `shouldReturn` Just ()
