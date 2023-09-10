@@ -27,6 +27,7 @@ module Desktop.Portal
     module Desktop.Portal.FileChooser,
     module Desktop.Portal.Notification,
     module Desktop.Portal.OpenURI,
+    module Desktop.Portal.Secret,
   )
 where
 
@@ -36,3 +37,4 @@ import Desktop.Portal.FileChooser
 import Desktop.Portal.Internal qualified as Internal
 import Desktop.Portal.Notification
 import Desktop.Portal.OpenURI hiding (OpenFileOptions (..), openFile, openFileOptions) -- avoid conflict with FileChooser.openFile
+import Desktop.Portal.Secret

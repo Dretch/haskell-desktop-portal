@@ -1,5 +1,6 @@
 module Desktop.Portal.TestUtil
   ( successResponse,
+    failureResponse,
     toVariantMap,
     toVariantText,
     TestHandle,
@@ -9,6 +10,7 @@ module Desktop.Portal.TestUtil
     withMethodResponse,
     withMethodResponse_,
     withRequestResponse,
+    withRequestAnswer,
     savingMethodArguments,
     savingMethodArguments_,
     savingRequestArguments,
@@ -105,6 +107,10 @@ withMethodResponse_ handle objectPath interfaceName methodName methodResponse cm
 
 withRequestResponse :: TestHandle -> InterfaceName -> MemberName -> [Variant] -> IO () -> IO ()
 withRequestResponse handle interfaceName methodName methodResponse cmd = do
+  withRequestAnswer handle interfaceName methodName (const (pure methodResponse)) cmd
+
+withRequestAnswer :: TestHandle -> InterfaceName -> MemberName -> (MethodCall -> IO [Variant]) -> IO () -> IO ()
+withRequestAnswer handle interfaceName methodName answer cmd = do
   export
     handle.serverClient
     portalObjectPath
@@ -116,6 +122,7 @@ withRequestResponse handle interfaceName methodName methodResponse cmd = do
   unexport handle.serverClient portalObjectPath
   where
     handleMethodCall methodCall = do
+      methodResponse <- liftIO (answer methodCall)
       emitResponseSignal handle methodCall methodResponse
       pure (ReplyReturn [toVariant (methodRequestHandle methodCall)])
 
@@ -232,6 +239,9 @@ successResponse pairs =
   [ toVariant (0 :: Word32), -- success code
     toVariantMap pairs
   ]
+
+failureResponse :: [Variant]
+failureResponse = [toVariant (1 :: Word32)]
 
 toVariantMap :: [(Text, Variant)] -> Variant
 toVariantMap = toVariant . Map.fromList
