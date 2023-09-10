@@ -1,6 +1,6 @@
 # Haskell Desktop Portal
 
-A Haskell wrapper for the [XDG Desktop Portal](https://github.com/flatpak/xdg-desktop-portal) DBUS API. Primarily intended to support applications packaged as Flatpaks (see [monomer-flatpak-example](https://github.com/Dretch/monomer-flatpak-example)).
+A Haskell wrapper for the [XDG Desktop Portal](https://github.com/flatpak/xdg-desktop-portal) DBUS API. Like [libportal](https://github.com/flatpak/libportal), but written in Haskell. Primarily intended to support applications packaged as Flatpaks (see [monomer-flatpak-example](https://github.com/Dretch/monomer-flatpak-example)).
 
 ## Current Status
 - Unstable. Functionality and API may change considerably.
@@ -12,6 +12,10 @@ A Haskell wrapper for the [XDG Desktop Portal](https://github.com/flatpak/xdg-de
 ## API Documentation
 
 See the generated docs on [Hackage](https://hackage.haskell.org/package/desktop-portal).
+
+## Example Code
+
+The [monomer-flatpak-example](https://github.com/Dretch/monomer-flatpak-example) app includes example code for many of the APIs.
 
 ## Development Guide
 
