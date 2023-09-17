@@ -24,7 +24,7 @@ import Text.URI qualified as URI
 
 -- | Returns @Just Nothing@ if the field does not exist, @Just (Just x)@ if it does exist and
 -- can be turned into the expected type, or @Nothing@ if the field exists with the wrong type.
-optionalFromVariant :: forall a. IsVariant a => Text -> Map Text Variant -> Maybe (Maybe a)
+optionalFromVariant :: forall a. (IsVariant a) => Text -> Map Text Variant -> Maybe (Maybe a)
 optionalFromVariant key variants =
   mapJust DBus.fromVariant (Map.lookup key variants)
 
@@ -33,10 +33,10 @@ mapJust f = \case
   Nothing -> Just Nothing
   Just x -> Just <$> f x
 
-toVariantPair :: IsVariant a => Text -> Maybe a -> Maybe (Text, Variant)
+toVariantPair :: (IsVariant a) => Text -> Maybe a -> Maybe (Text, Variant)
 toVariantPair = toVariantPair' id
 
-toVariantPair' :: IsVariant b => (a -> b) -> Text -> Maybe a -> Maybe (Text, Variant)
+toVariantPair' :: (IsVariant b) => (a -> b) -> Text -> Maybe a -> Maybe (Text, Variant)
 toVariantPair' f key = \case
   Nothing -> Nothing
   Just x -> Just (key, DBus.toVariant (f x))

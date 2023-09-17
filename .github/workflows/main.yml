@@ -12,17 +12,12 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: 'Check formatting'
-      uses: mrkkrp/ormolu-action@v9
+      uses: mrkkrp/ormolu-action@v14
 
     - uses: actions/cache@v3
       with:
         key: stack
         path: ~/.stack
-    
-    - uses: actions/cache@v3
-      with:
-        key: stack-work
-        path: .stack-work
 
     - uses: haskell/actions/setup@v2
       with:
@@ -49,6 +44,8 @@ jobs:
   
     needs: [build]
 
+    if: github.ref_type == 'tag'
+
     runs-on: ubuntu-22.04
 
     environment:
@@ -60,8 +57,8 @@ jobs:
       with:
         name: package
 
-    - name: 'Publish Package Candidate to Hackage'
-      run: cabal upload -u "$HACKAGE_USERNAME" -p "$HACKAGE_PASSWORD" */*/*.tar.gz
+    - name: 'Publish Package to Hackage'
+      run: cabal upload -u "$HACKAGE_USERNAME" -p "$HACKAGE_PASSWORD" --publish */*/*.tar.gz
       env:
         HACKAGE_USERNAME: ${{ secrets.HACKAGE_USERNAME }}
         HACKAGE_PASSWORD: ${{ secrets.HACKAGE_PASSWORD }}

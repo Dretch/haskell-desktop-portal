@@ -196,7 +196,7 @@ sendSignal handle signalInterface signalMember signalBody =
         signalBody
       }
 
-emitResponseSignal :: MonadIO m => TestHandle -> MethodCall -> [Variant] -> m ()
+emitResponseSignal :: (MonadIO m) => TestHandle -> MethodCall -> [Variant] -> m ()
 emitResponseSignal handle methodCall signalBody = do
   void . liftIO $
     emit
