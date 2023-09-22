@@ -23,6 +23,7 @@ module Desktop.Portal
 
     -- * Portal Interfaces
     module Desktop.Portal.Account,
+    module Desktop.Portal.Camera,
     module Desktop.Portal.Directories,
     module Desktop.Portal.FileChooser,
     module Desktop.Portal.Notification,
@@ -32,6 +33,7 @@ module Desktop.Portal
 where
 
 import Desktop.Portal.Account
+import Desktop.Portal.Camera
 import Desktop.Portal.Directories
 import Desktop.Portal.FileChooser
 import Desktop.Portal.Internal qualified as Internal

@@ -9,6 +9,7 @@ module Desktop.Portal.TestUtil
     withTestBus_,
     withMethodResponse,
     withMethodResponse_,
+    withReadOnlyProperty,
     withRequestResponse,
     withRequestAnswer,
     savingMethodArguments,
@@ -34,8 +35,8 @@ import Control.Concurrent (newEmptyMVar, tryPutMVar, tryReadMVar)
 import Control.Exception (bracket, finally, throwIO)
 import Control.Monad (unless, void)
 import Control.Monad.IO.Class (MonadIO (..))
-import DBus (BusName, InterfaceName, IsVariant (fromVariant), MemberName, MethodCall (..), ObjectPath, Type (..), Variant, formatBusName, getSessionAddress, objectPath_, toVariant, variantType)
-import DBus.Client (Client, ClientError, ClientOptions (..), Interface (..), Reply (..), RequestNameReply (..), clientError, connectWith, defaultClientOptions, defaultInterface, disconnect, emit, export, makeMethod, nameDoNotQueue, requestName, unexport)
+import DBus (BusName, InterfaceName, IsValue, IsVariant (fromVariant), MemberName, MethodCall (..), ObjectPath, Type (..), Variant, formatBusName, getSessionAddress, memberName_, objectPath_, toVariant, variantType)
+import DBus.Client (Client, ClientError, ClientOptions (..), Interface (..), Property, Reply (..), RequestNameReply (..), clientError, connectWith, defaultClientOptions, defaultInterface, disconnect, emit, export, makeMethod, nameDoNotQueue, readOnlyProperty, requestName, unexport)
 import DBus.Internal.Message (Signal (..))
 import DBus.Internal.Types (Atom (AtomText), Signature (..), Value (ValueMap), Variant (Variant))
 import DBus.Socket (SocketOptions (..), authenticatorWithUnixFds, defaultSocketOptions)
@@ -104,6 +105,18 @@ withMethodResponse_ handle objectPath interfaceName methodName methodResponse cm
       }
   cmd
   unexport handle.serverClient objectPath
+
+withReadOnlyProperty :: (IsValue a) => TestHandle -> InterfaceName -> MemberName -> IO a -> IO () -> IO ()
+withReadOnlyProperty handle interfaceName memberName value cmd = do
+  export
+    handle.serverClient
+    portalObjectPath
+    defaultInterface
+      { interfaceName,
+        interfaceProperties = [readOnlyProperty memberName value]
+      }
+  cmd
+  unexport handle.serverClient portalObjectPath
 
 withRequestResponse :: TestHandle -> InterfaceName -> MemberName -> [Variant] -> IO () -> IO ()
 withRequestResponse handle interfaceName methodName methodResponse cmd = do

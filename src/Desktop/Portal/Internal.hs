@@ -9,6 +9,7 @@ module Desktop.Portal.Internal
     cancel,
     callMethod,
     callMethod_,
+    getPropertyValue,
     SignalHandler,
     handleSignal,
     cancelSignalHandler,
@@ -22,7 +23,7 @@ import Control.Concurrent (MVar, putMVar, readMVar, tryPutMVar)
 import Control.Concurrent.MVar (newEmptyMVar)
 import Control.Exception (SomeException, bracket, catch, throwIO)
 import Control.Monad (void, when)
-import DBus (BusName, InterfaceName, MemberName, MethodCall, ObjectPath)
+import DBus (BusName, InterfaceName, IsValue, MemberName, MethodCall, ObjectPath)
 import DBus qualified
 import DBus.Client (ClientError, MatchRule (..))
 import DBus.Client qualified as DBus
@@ -223,6 +224,15 @@ callMethod_ client busName object interface memberName methodCallBody = do
             DBus.methodCallBody
           }
   DBus.methodReturnBody <$> DBus.call_ client.dbusClient methodCall
+
+getPropertyValue :: (IsValue a) => Client -> InterfaceName -> MemberName -> IO a
+getPropertyValue client interface memberName = do
+  let methodCall = portalMethodCall interface memberName
+  DBus.getPropertyValue client.dbusClient methodCall >>= \case
+    Left err ->
+      throwIO . DBus.clientError $ "getPropertyValue failed: " <> show err
+    Right a ->
+      pure a
 
 handleSignal :: Client -> InterfaceName -> MemberName -> ([Variant] -> IO ()) -> IO SignalHandler
 handleSignal client interface memberName handler = do
