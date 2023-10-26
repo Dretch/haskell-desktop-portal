@@ -5,7 +5,7 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           desktop-portal
-version:        0.3.2.0
+version:        0.4.0.0
 synopsis:       Desktop Portal.
 description:    A Haskell wrapper for the XDG Desktop Portal DBUS API.
 category:       GUI, XDG, Flatpak, Desktop, Portal
@@ -28,7 +28,6 @@ library
       Desktop.Portal
       Desktop.Portal.Account
       Desktop.Portal.Camera
-      Desktop.Portal.Directories
       Desktop.Portal.Documents
       Desktop.Portal.FileChooser
       Desktop.Portal.Notification

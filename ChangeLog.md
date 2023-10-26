@@ -1,3 +1,7 @@
+## 0.4.0.0
+### Removed
+- Remove `Desktop.Portal.Directories`. Use the directory package instead.
+
 ## 0.3.2.0
 ### Added
 - Add Camera Portal support.
