@@ -35,8 +35,8 @@ import Control.Concurrent (newEmptyMVar, tryPutMVar, tryReadMVar)
 import Control.Exception (bracket, finally, throwIO)
 import Control.Monad (unless, void)
 import Control.Monad.IO.Class (MonadIO (..))
-import DBus (BusName, InterfaceName, IsValue, IsVariant (fromVariant), MemberName, MethodCall (..), ObjectPath, Type (..), Variant, formatBusName, getSessionAddress, memberName_, objectPath_, toVariant, variantType)
-import DBus.Client (Client, ClientError, ClientOptions (..), Interface (..), Property, Reply (..), RequestNameReply (..), clientError, connectWith, defaultClientOptions, defaultInterface, disconnect, emit, export, makeMethod, nameDoNotQueue, readOnlyProperty, requestName, unexport)
+import DBus (BusName, InterfaceName, IsValue, IsVariant (fromVariant), MemberName, MethodCall (..), ObjectPath, Type (..), Variant, formatBusName, getSessionAddress, objectPath_, toVariant, variantType)
+import DBus.Client (Client, ClientError, ClientOptions (..), Interface (..), Reply (..), RequestNameReply (..), clientError, connectWith, defaultClientOptions, defaultInterface, disconnect, emit, export, makeMethod, nameDoNotQueue, readOnlyProperty, requestName, unexport)
 import DBus.Internal.Message (Signal (..))
 import DBus.Internal.Types (Atom (AtomText), Signature (..), Value (ValueMap), Variant (Variant))
 import DBus.Socket (SocketOptions (..), authenticatorWithUnixFds, defaultSocketOptions)
@@ -303,7 +303,7 @@ withTempFds n cmd = go [] n
 withTempDirectoryFd :: (Fd -> IO ()) -> IO ()
 withTempDirectoryFd cmd =
   withSystemTempDirectory "haskell-desktop-portal" $ \path -> do
-    bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd cmd
+    bracket (openFd path ReadOnly defaultFileFlags) closeFd cmd
 
 withTempDirectoryFilePath :: (FilePath -> IO ()) -> IO ()
 withTempDirectoryFilePath =

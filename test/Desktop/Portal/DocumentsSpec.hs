@@ -10,6 +10,7 @@ import Desktop.Portal.Documents (AddFlag (..), ExtraResults (..), GrantPermissio
 import Desktop.Portal.Documents qualified as Documents
 import Desktop.Portal.TestUtil
 import Desktop.Portal.TestUtil qualified as DBus
+import System.OsPath qualified as OsPath
 import Test.Hspec (Spec, around, describe, it, shouldBe, shouldReturn, shouldSatisfy)
 
 documentsInterface :: InterfaceName
@@ -34,7 +35,8 @@ spec = do
       it "should decode response" $ \handle -> do
         let responseBody = [toVariant ("/a/b/c\0" :: ByteString)]
         withDocumentsMethodResponse handle "GetMountPoint" responseBody $ do
-          Documents.getMountPoint (client handle) `shouldReturn` "/a/b/c"
+          path <- OsPath.encodeUtf "/a/b/c"
+          Documents.getMountPoint (client handle) `shouldReturn` path
 
     describe "add" $ do
       it "should encode request with file descriptor" $ \handle -> do
@@ -101,8 +103,9 @@ spec = do
                 toVariantMap [("mountpoint", DBus.toVariant ("/a/b/c\0" :: ByteString))]
               ]
         withDocumentsMethodResponse handle "AddFull" responseBody $ do
+          path <- OsPath.encodeUtf "/a/b/c"
           Documents.addFull (client handle) [] [] Nothing []
-            `shouldReturn` (["docId"], ExtraResults "/a/b/c")
+            `shouldReturn` (["docId"], ExtraResults path)
 
     describe "addNamed" $ do
       it "should encode request with file descriptor" $ \handle -> do
@@ -184,8 +187,9 @@ spec = do
                   toVariantMap [("mountpoint", DBus.toVariant ("/a/b/c\0" :: ByteString))]
                 ]
           withDocumentsMethodResponse handle "AddNamedFull" responseBody $ do
+            path <- OsPath.encodeUtf "/a/b/c"
             Documents.addNamedFull (client handle) (FileSpecFd fd) "filename\0" [] Nothing []
-              `shouldReturn` ("docId", ExtraResults "/a/b/c")
+              `shouldReturn` ("docId", ExtraResults path)
 
     describe "grantPermissions" $ do
       it "should encode request" $ \handle -> do

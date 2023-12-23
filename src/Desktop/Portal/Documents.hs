@@ -24,13 +24,17 @@ import DBus (BusName, InterfaceName, MemberName, ObjectPath, Variant)
 import DBus qualified
 import DBus.Client qualified as DBus
 import Data.Bits (Ior (..))
+import Data.ByteString.Lazy qualified as Bytes
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.String (IsString)
-import Data.Text (Text, unpack)
+import Data.Text (Text)
 import Data.Word (Word32)
 import Desktop.Portal.Internal (Client, FileSpec, callMethod_, withFd, withFds)
-import Desktop.Portal.Util (decodeNullTerminatedUtf8, encodeNullTerminatedUtf8)
+import Desktop.Portal.Util (encodeNullTerminatedUtf8)
+import System.OsPath (OsPath)
+import System.OsPath.Data.ByteString.Short qualified as ShortByteString
+import System.OsString.Internal.Types (OsString (..), PosixString (..))
 
 newtype ApplicationId = ApplicationId Text
   deriving newtype (Eq, Ord, Show, IsString)
@@ -52,7 +56,7 @@ data GrantPermission
   | GrantDelete
   deriving (Eq, Show)
 
-newtype ExtraResults = ExtraResults {mountpoint :: FilePath}
+newtype ExtraResults = ExtraResults {mountpoint :: OsPath}
   deriving (Eq, Show)
 
 documentsInterface :: InterfaceName
@@ -64,10 +68,10 @@ documentsBusName = "org.freedesktop.portal.Documents"
 documentsObject :: ObjectPath
 documentsObject = "/org/freedesktop/portal/documents"
 
-getMountPoint :: Client -> IO FilePath
+getMountPoint :: Client -> IO OsPath
 getMountPoint client = do
   callDocumentsMethod client "GetMountPoint" [] >>= \case
-    [toFilePath -> Just path] ->
+    [toOsPath -> Just path] ->
       pure path
     res ->
       throwIO . DBus.clientError $ "getMountPoint: could not parse response: " <> show res
@@ -233,11 +237,13 @@ encodeGrantPermission = \case
 toExtraResults :: Variant -> Maybe ExtraResults
 toExtraResults v = case DBus.fromVariant v of
   Just (extraMap :: Map Text Variant)
-    | Just mountpoint <- toFilePath =<< Map.lookup "mountpoint" extraMap ->
+    | Just mountpoint <- toOsPath =<< Map.lookup "mountpoint" extraMap ->
         Just ExtraResults {mountpoint}
   _ ->
     Nothing
 
-toFilePath :: Variant -> Maybe FilePath
-toFilePath v =
-  unpack <$> (decodeNullTerminatedUtf8 =<< DBus.fromVariant v)
+toOsPath :: Variant -> Maybe OsPath
+toOsPath v = bytesToOsPath <$> DBus.fromVariant v
+  where
+    bytesToOsPath =
+      OsString . PosixString . ShortByteString.toShort . Bytes.toStrict . Bytes.dropWhileEnd (== 0)

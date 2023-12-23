@@ -1,5 +1,5 @@
 name:                desktop-portal
-version:             0.4.0.0
+version:             0.5.0.0
 license:             MIT
 synopsis:            Desktop Portal.
 description:         A Haskell wrapper for the XDG Desktop Portal DBUS API.
@@ -21,6 +21,7 @@ dependencies:
 - data-default-class
 - dbus >= 1.3.0 && < 2
 - directory
+- filepath
 - network
 - modern-uri
 - random

@@ -1,3 +1,7 @@
+## 0.5.0.0
+### Changed
+- Switch from `FilePath` to the new `OsPath`.
+
 ## 0.4.0.0
 ### Removed
 - Remove `Desktop.Portal.Directories`. Use the directory package instead.

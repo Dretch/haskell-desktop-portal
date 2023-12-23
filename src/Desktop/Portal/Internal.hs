@@ -287,7 +287,7 @@ withFd = \case
   FileSpecFd fd ->
     ($ fd)
   FileSpecPath path ->
-    bracket (openFd path ReadOnly Nothing defaultFileFlags) closeFd
+    bracket (openFd path ReadOnly defaultFileFlags) closeFd
 
 withFds :: forall a. [FileSpec] -> ([Fd] -> IO a) -> IO a
 withFds files cmd = withFdsRec [] files
