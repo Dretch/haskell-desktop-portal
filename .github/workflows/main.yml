@@ -19,7 +19,7 @@ jobs:
         key: stack
         path: ~/.stack
 
-    - uses: haskell/actions/setup@v2
+    - uses: haskell-actions/setup@v2
       with:
         stack-setup-ghc: true
         enable-stack: true
