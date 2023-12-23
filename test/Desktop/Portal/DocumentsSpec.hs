@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Desktop.Portal.DocumentsSpec (spec) where
 
 import Control.Monad (void)
@@ -10,6 +12,7 @@ import Desktop.Portal.Documents (AddFlag (..), ExtraResults (..), GrantPermissio
 import Desktop.Portal.Documents qualified as Documents
 import Desktop.Portal.TestUtil
 import Desktop.Portal.TestUtil qualified as DBus
+import System.OsPath (osp)
 import System.OsPath qualified as OsPath
 import Test.Hspec (Spec, around, describe, it, shouldBe, shouldReturn, shouldSatisfy)
 
@@ -35,8 +38,7 @@ spec = do
       it "should decode response" $ \handle -> do
         let responseBody = [toVariant ("/a/b/c\0" :: ByteString)]
         withDocumentsMethodResponse handle "GetMountPoint" responseBody $ do
-          path <- OsPath.encodeUtf "/a/b/c"
-          Documents.getMountPoint (client handle) `shouldReturn` path
+          Documents.getMountPoint (client handle) `shouldReturn` [osp|/a/b/c|]
 
     describe "add" $ do
       it "should encode request with file descriptor" $ \handle -> do
@@ -103,9 +105,8 @@ spec = do
                 toVariantMap [("mountpoint", DBus.toVariant ("/a/b/c\0" :: ByteString))]
               ]
         withDocumentsMethodResponse handle "AddFull" responseBody $ do
-          path <- OsPath.encodeUtf "/a/b/c"
           Documents.addFull (client handle) [] [] Nothing []
-            `shouldReturn` (["docId"], ExtraResults path)
+            `shouldReturn` (["docId"], ExtraResults [osp|/a/b/c|])
 
     describe "addNamed" $ do
       it "should encode request with file descriptor" $ \handle -> do
@@ -187,9 +188,8 @@ spec = do
                   toVariantMap [("mountpoint", DBus.toVariant ("/a/b/c\0" :: ByteString))]
                 ]
           withDocumentsMethodResponse handle "AddNamedFull" responseBody $ do
-            path <- OsPath.encodeUtf "/a/b/c"
             Documents.addNamedFull (client handle) (FileSpecFd fd) "filename\0" [] Nothing []
-              `shouldReturn` ("docId", ExtraResults path)
+              `shouldReturn` ("docId", ExtraResults [osp|/a/b/c|])
 
     describe "grantPermissions" $ do
       it "should encode request" $ \handle -> do
