@@ -3,8 +3,8 @@ module Desktop.Portal.Util
     mapJust,
     toVariantPair,
     toVariantPair',
-    encodeNullTerminatedUtf8,
-    decodeNullTerminatedUtf8,
+    encodeNullTerminated,
+    decodeNullTerminated,
     decodeFileUri,
     decodeFileUris,
   )
@@ -12,13 +12,15 @@ where
 
 import DBus (IsVariant, Variant)
 import DBus qualified
-import Data.Binary.Builder qualified as Binary
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy qualified as Bytes
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text (Text, unpack)
-import Data.Text.Encoding qualified as Encoding
+import System.OsPath (OsPath, OsString)
+import System.OsPath qualified as OsPath
+import System.OsPath.Data.ByteString.Short qualified as ShortByteString
+import System.OsString.Internal.Types (OsString (..), PosixString (..))
 import Text.URI (Authority (..), URI (..))
 import Text.URI qualified as URI
 
@@ -41,17 +43,15 @@ toVariantPair' f key = \case
   Nothing -> Nothing
   Just x -> Just (key, DBus.toVariant (f x))
 
-encodeNullTerminatedUtf8 :: Text -> ByteString
-encodeNullTerminatedUtf8 txt =
-  Binary.toLazyByteString (Encoding.encodeUtf8Builder txt <> Binary.singleton 0)
+encodeNullTerminated :: OsString -> ByteString
+encodeNullTerminated (OsString (PosixString txt)) =
+  Bytes.fromStrict (ShortByteString.fromShort (txt <> ShortByteString.singleton 0))
 
-decodeNullTerminatedUtf8 :: ByteString -> Maybe Text
-decodeNullTerminatedUtf8 bytes =
-  case Encoding.decodeUtf8' (Bytes.toStrict (Bytes.dropWhileEnd (== 0) bytes)) of
-    Left _err -> Nothing
-    Right t -> Just t
+decodeNullTerminated :: ByteString -> OsString
+decodeNullTerminated =
+  OsString . PosixString . ShortByteString.toShort . Bytes.toStrict . Bytes.dropWhileEnd (== 0)
 
-decodeFileUri :: Text -> Maybe FilePath
+decodeFileUri :: Text -> Maybe OsPath
 decodeFileUri uri =
   case URI.mkURI uri of
     Just
@@ -61,7 +61,7 @@ decodeFileUri uri =
           uriPath = Just (_trailingSlash, parts),
           uriQuery = [],
           uriFragment = Nothing
-        } -> Just . unpack $ foldMap (("/" <>) . URI.unRText) parts
+        } -> OsPath.encodeUtf . unpack $ foldMap (("/" <>) . URI.unRText) parts
     _ ->
       Nothing
   where
@@ -75,5 +75,5 @@ decodeFileUri uri =
           } -> True
       _ -> False
 
-decodeFileUris :: [Text] -> Maybe [FilePath]
+decodeFileUris :: [Text] -> Maybe [OsPath]
 decodeFileUris = traverse decodeFileUri

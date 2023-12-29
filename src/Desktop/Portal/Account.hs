@@ -16,6 +16,7 @@ import Data.Maybe (catMaybes, fromMaybe)
 import Data.Text (Text)
 import Desktop.Portal.Internal (Client, Request, sendRequest)
 import Desktop.Portal.Util (decodeFileUri, mapJust, optionalFromVariant, toVariantPair)
+import System.OsPath (OsPath)
 
 data GetUserInformationOptions = GetUserInformationOptions
   { window :: Maybe Text,
@@ -33,7 +34,7 @@ instance Default GetUserInformationOptions where
 data GetUserInformationResults = GetUserInformationResults
   { id :: Text,
     name :: Text,
-    image :: Maybe FilePath
+    image :: Maybe OsPath
   }
   deriving (Eq, Show)
 

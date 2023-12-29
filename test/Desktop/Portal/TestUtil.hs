@@ -33,7 +33,7 @@ where
 
 import Control.Concurrent (newEmptyMVar, tryPutMVar, tryReadMVar)
 import Control.Exception (bracket, finally, throwIO)
-import Control.Monad (unless, void)
+import Control.Monad (unless, void, (>=>))
 import Control.Monad.IO.Class (MonadIO (..))
 import DBus (BusName, InterfaceName, IsValue, IsVariant (fromVariant), MemberName, MethodCall (..), ObjectPath, Type (..), Variant, formatBusName, getSessionAddress, objectPath_, toVariant, variantType)
 import DBus.Client (Client, ClientError, ClientOptions (..), Interface (..), Reply (..), RequestNameReply (..), clientError, connectWith, defaultClientOptions, defaultInterface, disconnect, emit, export, makeMethod, nameDoNotQueue, readOnlyProperty, requestName, unexport)
@@ -48,6 +48,8 @@ import Desktop.Portal qualified as Portal
 import GHC.IO.Handle (hGetLine)
 import System.Environment (lookupEnv, setEnv)
 import System.IO.Temp (withSystemTempDirectory, withSystemTempFile)
+import System.OsPath (OsPath)
+import System.OsPath qualified as OsPath
 import System.Posix (Fd, OpenMode (..), closeFd, defaultFileFlags, handleToFd, openFd)
 import System.Process (StdStream (..), createProcess, proc, std_out, terminateProcess)
 import Test.Hspec.Expectations (Expectation, HasCallStack, Selector, shouldSatisfy)
@@ -277,11 +279,11 @@ connectSessionWithFds = do
           clientOptions = defaultClientOptions {clientSocketOptions}
       connectWith clientOptions addr
 
-withTempFilePath :: (FilePath -> IO ()) -> IO ()
+withTempFilePath :: (OsPath -> IO ()) -> IO ()
 withTempFilePath cmd =
-  withSystemTempFile "haskell-desktop-portal" $ \path _handle -> cmd path
+  withSystemTempFile "haskell-desktop-portal" $ \path _handle -> OsPath.encodeUtf path >>= cmd
 
-withTempFilePaths :: Int -> ([FilePath] -> IO ()) -> IO ()
+withTempFilePaths :: Int -> ([OsPath] -> IO ()) -> IO ()
 withTempFilePaths n cmd = go [] n
   where
     go acc = \case
@@ -305,9 +307,9 @@ withTempDirectoryFd cmd =
   withSystemTempDirectory "haskell-desktop-portal" $ \path -> do
     bracket (openFd path ReadOnly defaultFileFlags) closeFd cmd
 
-withTempDirectoryFilePath :: (FilePath -> IO ()) -> IO ()
-withTempDirectoryFilePath =
-  withSystemTempDirectory "haskell-desktop-portal"
+withTempDirectoryFilePath :: (OsPath -> IO ()) -> IO ()
+withTempDirectoryFilePath cmd =
+  withSystemTempDirectory "haskell-desktop-portal" (OsPath.encodeUtf >=> cmd)
 
 shouldSatisfyList :: (HasCallStack, Show a) => [a] -> [a -> Bool] -> Expectation
 shouldSatisfyList xs predicates = shouldSatisfy xs predicate

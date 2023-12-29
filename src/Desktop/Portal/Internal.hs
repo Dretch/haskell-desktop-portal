@@ -34,6 +34,8 @@ import Data.Map (Map)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text, pack, unpack)
 import Data.Word (Word32, Word64)
+import System.OsPath (OsPath)
+import System.OsPath qualified as OsPath
 import System.Posix (Fd, OpenMode (..), closeFd, defaultFileFlags, openFd)
 import System.Random.Stateful qualified as R
 
@@ -278,16 +280,17 @@ portalBusName = "org.freedesktop.portal.Desktop"
 -- resolved to a file descriptor before passing it to the portals API, since
 -- the API typically requires file descriptors).
 data FileSpec
-  = FileSpecPath FilePath
+  = FileSpecPath OsPath
   | FileSpecFd Fd
   deriving (Eq, Show)
 
 withFd :: FileSpec -> (Fd -> IO a) -> IO a
-withFd = \case
+withFd spec cmd = case spec of
   FileSpecFd fd ->
-    ($ fd)
-  FileSpecPath path ->
-    bracket (openFd path ReadOnly defaultFileFlags) closeFd
+    cmd fd
+  FileSpecPath path -> do
+    filePath <- OsPath.decodeUtf path
+    bracket (openFd filePath ReadOnly defaultFileFlags) closeFd cmd
 
 withFds :: forall a. [FileSpec] -> ([Fd] -> IO a) -> IO a
 withFds files cmd = withFdsRec [] files

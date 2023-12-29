@@ -1,3 +1,7 @@
+## 0.6.0.0
+### Changed
+- Convert more APIs from `FilePath` to `OsPath`.
+
 ## 0.5.0.0
 ### Changed
 - Switch from `FilePath` to the new `OsPath`.

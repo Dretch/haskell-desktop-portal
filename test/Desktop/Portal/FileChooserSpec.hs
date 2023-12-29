@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Desktop.Portal.FileChooserSpec (spec) where
 
 import Control.Monad (void)
@@ -9,6 +11,7 @@ import Data.Word (Word32)
 import Desktop.Portal (ChoiceCombo (..), ChoiceComboOption (..), ChoiceComboSelection (..), Filter (..), FilterFileType (..), OpenFileOptions (..), OpenFileResults (..), SaveFileOptions (..), SaveFileResults (..))
 import Desktop.Portal qualified as Portal
 import Desktop.Portal.TestUtil
+import System.OsPath (osp)
 import Test.Hspec (Spec, around, describe, it, shouldBe, shouldReturn, shouldThrow)
 
 fileChooserInterface :: InterfaceName
@@ -103,7 +106,7 @@ spec = do
         withRequestResponse handle fileChooserInterface "OpenFile" responseBody $ do
           (Portal.openFile (client handle) def >>= Portal.await)
             `shouldReturn` Just
-              (OpenFileResults {uris = ["/a/b/c"], choices = Nothing, currentFilter = Nothing})
+              (OpenFileResults {uris = [[osp|/a/b/c|]], choices = Nothing, currentFilter = Nothing})
 
       it "should decode response with all Justs" $ \handle -> do
         let responseBody =
@@ -116,7 +119,7 @@ spec = do
           (Portal.openFile (client handle) def >>= Portal.await)
             `shouldReturn` Just
               ( OpenFileResults
-                  { uris = ["/a/b/c"],
+                  { uris = [[osp|/a/b/c|]],
                     choices = Just [ChoiceComboSelection {comboId = "_comboId", optionId = "_optionId"}],
                     currentFilter = Just Filter {name = "_filterId", fileTypes = [GlobFilter "*.md"]}
                   }
@@ -168,8 +171,8 @@ spec = do
                         }
                     ],
                 currentName = Just "some_name",
-                currentFolder = Just "/some/folder",
-                currentFile = Just "/some/file"
+                currentFolder = Just [osp|/some/folder|],
+                currentFile = Just [osp|/some/file|]
               }
         body
           `shouldBe` [ toVariantText "_parentWindow",
@@ -214,7 +217,7 @@ spec = do
         withRequestResponse handle fileChooserInterface "SaveFile" responseBody $ do
           (Portal.saveFile (client handle) def >>= Portal.await)
             `shouldReturn` Just
-              (SaveFileResults {uris = ["/a/b/c"], choices = Nothing, currentFilter = Nothing})
+              (SaveFileResults {uris = [[osp|/a/b/c|]], choices = Nothing, currentFilter = Nothing})
 
       it "should decode response with all Justs" $ \handle -> do
         let responseBody =
@@ -227,7 +230,7 @@ spec = do
           (Portal.saveFile (client handle) def >>= Portal.await)
             `shouldReturn` Just
               ( SaveFileResults
-                  { uris = ["/a/b/c"],
+                  { uris = [[osp|/a/b/c|]],
                     choices = Just [ChoiceComboSelection {comboId = "_comboId", optionId = "_optionId"}],
                     currentFilter = Just Filter {name = "_filterId", fileTypes = [GlobFilter "*.md"]}
                   }

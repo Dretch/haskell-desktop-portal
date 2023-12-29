@@ -31,7 +31,7 @@ import Data.String (IsString)
 import Data.Text (Text)
 import Data.Word (Word32)
 import Desktop.Portal.Internal (Client, FileSpec, callMethod_, withFd, withFds)
-import Desktop.Portal.Util (encodeNullTerminatedUtf8)
+import Desktop.Portal.Util (encodeNullTerminated)
 import System.OsPath (OsPath)
 import System.OsPath.Data.ByteString.Short qualified as ShortByteString
 import System.OsString.Internal.Types (OsString (..), PosixString (..))
@@ -135,7 +135,7 @@ addNamed ::
   -- | The parent directory of the file to add to the documents store.
   FileSpec ->
   -- | The basename of the file.
-  Text ->
+  OsString ->
   -- | Whether to re-use the existing entry in the documents store, if this file is already there.
   Bool ->
   -- | Whether this file should stay in the documents store after this app shuts down.
@@ -152,7 +152,7 @@ addNamed client parentDir basename reuseExisting persistent =
   where
     args fd =
       [ DBus.toVariant fd,
-        DBus.toVariant (encodeNullTerminatedUtf8 basename),
+        DBus.toVariant (encodeNullTerminated basename),
         DBus.toVariant reuseExisting,
         DBus.toVariant persistent
       ]
@@ -163,7 +163,7 @@ addNamedFull ::
   -- | The parent directory of the file to add to the documents store.
   FileSpec ->
   -- | The basename of the file.
-  Text ->
+  OsString ->
   -- | The flags to apply to the file.
   [AddFlag] ->
   -- | The id of another application that will be granted access to the file.
@@ -182,7 +182,7 @@ addNamedFull client parentDir basename flags appId permissions =
   where
     args fd =
       [ DBus.toVariant fd,
-        DBus.toVariant (encodeNullTerminatedUtf8 basename),
+        DBus.toVariant (encodeNullTerminated basename),
         DBus.toVariant (encodeAddFlags flags),
         DBus.toVariant (maybe "" (\(ApplicationId ai) -> ai) appId),
         DBus.toVariant (encodeGrantPermission <$> permissions)

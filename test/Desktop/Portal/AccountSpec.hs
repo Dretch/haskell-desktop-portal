@@ -1,3 +1,5 @@
+{-# LANGUAGE QuasiQuotes #-}
+
 module Desktop.Portal.AccountSpec (spec) where
 
 import Control.Monad (void)
@@ -6,6 +8,7 @@ import Data.Default.Class (Default (def))
 import Desktop.Portal (GetUserInformationOptions (..), GetUserInformationResults (..))
 import Desktop.Portal qualified as Portal
 import Desktop.Portal.TestUtil
+import System.OsPath (osp)
 import Test.Hspec (Spec, around, describe, it, shouldBe, shouldReturn, shouldThrow)
 
 accountInterface :: InterfaceName
@@ -40,7 +43,7 @@ spec = do
                 ]
         withRequestResponse handle accountInterface "GetUserInformation" responseBody $ do
           (Portal.getUserInformation (client handle) def >>= Portal.await)
-            `shouldReturn` Just (GetUserInformationResults "_id" "_name" (Just "/some/path"))
+            `shouldReturn` Just (GetUserInformationResults "_id" "_name" (Just [osp|/some/path|]))
 
       it "should decode response without image" $ \handle -> do
         let responseBody =

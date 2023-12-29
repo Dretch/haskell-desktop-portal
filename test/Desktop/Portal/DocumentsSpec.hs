@@ -13,7 +13,6 @@ import Desktop.Portal.Documents qualified as Documents
 import Desktop.Portal.TestUtil
 import Desktop.Portal.TestUtil qualified as DBus
 import System.OsPath (osp)
-import System.OsPath qualified as OsPath
 import Test.Hspec (Spec, around, describe, it, shouldBe, shouldReturn, shouldSatisfy)
 
 documentsInterface :: InterfaceName
@@ -113,7 +112,7 @@ spec = do
         withTempDirectoryFd $ \fd -> do
           let responseBody = [toVariantText "docId"]
           body <- savingDocumentsMethodArguments handle "AddNamed" responseBody $ do
-            void $ Documents.addNamed (client handle) (FileSpecFd fd) "filename" False True
+            void $ Documents.addNamed (client handle) (FileSpecFd fd) [osp|filename|] False True
           head body `shouldSatisfy` isDifferentUnixFd fd
           tail body
             `shouldBe` [ DBus.toVariant ("filename\0" :: ByteString),
@@ -125,7 +124,7 @@ spec = do
         withTempDirectoryFilePath $ \path -> do
           let responseBody = [toVariantText "docId"]
           body <- savingDocumentsMethodArguments handle "AddNamed" responseBody $ do
-            void $ Documents.addNamed (client handle) (FileSpecPath path) "filename" False True
+            void $ Documents.addNamed (client handle) (FileSpecPath path) [osp|filename|] False True
           head body `shouldSatisfy` isUnixFd
           tail body
             `shouldBe` [ DBus.toVariant ("filename\0" :: ByteString),
@@ -137,7 +136,7 @@ spec = do
         withTempDirectoryFd $ \fd -> do
           let responseBody = [DBus.toVariantText "docId"]
           withDocumentsMethodResponse handle "AddNamed" responseBody $ do
-            Documents.addNamed (client handle) (FileSpecFd fd) "filename\0" False False
+            Documents.addNamed (client handle) (FileSpecFd fd) [osp|filename|] False False
               `shouldReturn` "docId"
 
     describe "addNamedFull" $ do
@@ -152,7 +151,7 @@ spec = do
               Documents.addNamedFull
                 (client handle)
                 (FileSpecFd fd)
-                "filename"
+                [osp|filename|]
                 [AddReuseExisting, AddPersistent, AddAsNeededByApp, AddExportDirectory]
                 (Just "appId")
                 [GrantRead, GrantWrite, GrantGrantPermissions, GrantDelete]
@@ -172,7 +171,7 @@ spec = do
                 ]
           body <- savingDocumentsMethodArguments handle "AddNamedFull" responseBody $ do
             void $
-              Documents.addNamedFull (client handle) (FileSpecPath path) "filename" [] Nothing []
+              Documents.addNamedFull (client handle) (FileSpecPath path) [osp|filename|] [] Nothing []
           head body `shouldSatisfy` isUnixFd
           tail body
             `shouldBe` [ DBus.toVariant ("filename\0" :: ByteString),
@@ -188,7 +187,7 @@ spec = do
                   toVariantMap [("mountpoint", DBus.toVariant ("/a/b/c\0" :: ByteString))]
                 ]
           withDocumentsMethodResponse handle "AddNamedFull" responseBody $ do
-            Documents.addNamedFull (client handle) (FileSpecFd fd) "filename\0" [] Nothing []
+            Documents.addNamedFull (client handle) (FileSpecFd fd) [osp|filename|] [] Nothing []
               `shouldReturn` ("docId", ExtraResults [osp|/a/b/c|])
 
     describe "grantPermissions" $ do
